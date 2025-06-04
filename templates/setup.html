@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Setup New Draft</h2>
+
+<form method="POST">
+    <div id="teams-container">
+        <h3>Add Teams</h3>
+        <div class="team-input" style="margin: 10px 0;">
+            <input type="text" name="team_names[]" placeholder="Team Name" required>
+            <input type="text" name="team_owners[]" placeholder="Owner Name" required>
+        </div>
+    </div>
+
+    <button type="button" onclick="addTeam()" class="btn" style="margin: 10px 0;">Add Another Team</button>
+    <button type="submit" class="btn">Start Draft</button>
+</form>
+
+<script>
+function addTeam() {
+    const container = document.getElementById('teams-container');
+    const newTeam = document.createElement('div');
+    newTeam.className = 'team-input';
+    newTeam.style.margin = '10px 0';
+    newTeam.innerHTML = `
+        <input type="text" name="team_names[]" placeholder="Team Name" required>
+        <input type="text" name="team_owners[]" placeholder="Owner Name" required>
+    `;
+    container.appendChild(newTeam);
+}
+</script>
+{% endblock %}

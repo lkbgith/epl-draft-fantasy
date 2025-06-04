@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Draft in Progress</h2>
+
+<div class="current-pick" style="background-color: #e3f2fd; padding: 20px; margin: 20px 0; border-radius: 4px;">
+    <h3>Current Pick: #{{ draft.current_pick }}</h3>
+    <h4>{{ current_team.name }} ({{ current_team.owner }}) is on the clock!</h4>
+</div>
+
+<div style="display: flex; gap: 20px;">
+    <div style="flex: 2;">
+        <h3>Available Players</h3>
+
+        <div class="filter-buttons" style="margin: 10px 0;">
+            <button onclick="filterPlayers('all')" class="btn">All</button>
+            <button onclick="filterPlayers('GK')" class="btn">GK</button>
+            <button onclick="filterPlayers('DEF')" class="btn">DEF</button>
+            <button onclick="filterPlayers('MID')" class="btn">MID</button>
+            <button onclick="filterPlayers('FWD')" class="btn">FWD</button>
+        </div>
+
+        <div class="player-list">
+            {% for player in available_players %}
+            <div class="player-card" data-position="{{ player.position }}" style="padding: 15px;">
+                <div style="flex: 1;">
+                    <strong>{{ player.name }}</strong>
+                    <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
+                    <span style="color: #666;">{{ player.team }}</span>
+
+                    {% if player.points_last_season > 0 %}
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        <span>Points: {{ player.points_last_season }}</span>
+                        {% if player.games_played > 0 %}
+                        <span style="margin-left: 10px;">PPG: {{ player.points_per_game }}</span>
+                        <span style="margin-left: 10px;">Games: {{ player.games_played }}</span>
+                        {% endif %}
+                        {% if player.goals > 0 or player.assists > 0 %}
+                        <span style="margin-left: 10px;">G: {{ player.goals }} A: {{ player.assists }}</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                <form method="POST" action="{{ url_for('draft_player', player_id=player.id) }}" style="display: inline;">
+                    <button type="submit" class="btn">Draft</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div style="flex: 1;">
+        <h3>Draft Order</h3>
+        <ol>
+            {% for team in teams %}
+            <li {% if team.id == current_team.id %}style="font-weight: bold; color: #38003c;"{% endif %}>
+                {{ team.name }} ({{ team.players|length }} players)
+            </li>
+            {% endfor %}
+        </ol>
+    </div>
+</div>
+
+<script>
+function filterPlayers(position) {
+    const players = document.querySelectorAll('.player-card');
+    players.forEach(player => {
+        if (position === 'all' || player.dataset.position === position) {
+            player.style.display = 'flex';
+        } else {
+            player.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

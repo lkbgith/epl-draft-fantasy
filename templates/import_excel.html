@@ -1,0 +1,93 @@
+<!-- templates/import_excel.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>Import FPL Excel Data</h2>
+
+<div style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <p><strong>Current players in database:</strong> {{ current_players }}</p>
+</div>
+
+{% if error %}
+<div style="background-color: #ffebee; color: #c62828; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <strong>Error:</strong> {{ error }}
+</div>
+{% endif %}
+
+{% if success %}
+<div style="background-color: #e8f5e9; color: #2e7d32; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <h3>Import Successful!</h3>
+    <p><strong>New players imported:</strong> {{ imported }}</p>
+    <p><strong>Existing players updated:</strong> {{ updated }}</p>
+    <p><strong>Total rows processed:</strong> {{ total_processed }}</p>
+
+    {% if errors %}
+    <p><strong>Errors encountered:</strong></p>
+    <ul style="color: #d32f2f;">
+        {% for error in errors %}
+        <li>{{ error }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+{% endif %}
+
+<div style="border: 1px solid #ddd; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
+    <h3>Upload FPL Excel File</h3>
+
+    <form method="POST" enctype="multipart/form-data">
+        <div style="margin-bottom: 15px;">
+            <label for="file">Select Excel file (.xlsx or .xls):</label><br>
+            <input type="file" name="file" id="file" accept=".xlsx,.xls" required>
+        </div>
+
+        <button type="submit" class="btn">Upload and Import</button>
+    </form>
+</div>
+
+<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <h3>📊 Excel File Requirements</h3>
+
+    <p>The Excel file should have a sheet named <strong>"Player Data"</strong> with the following columns:</p>
+
+    <h4>Required columns:</h4>
+    <ul>
+        <li><strong>second_name</strong> - Player's last name</li>
+        <li><strong>team</strong> - Team name (e.g., Arsenal, Liverpool)</li>
+        <li><strong>position</strong> - Player position (GK/GKP, DEF/Def, MID/Mid, FWD/For)</li>
+    </ul>
+
+    <h4>Optional but recommended columns:</h4>
+    <ul>
+        <li><strong>first_name</strong> - Player's first name</li>
+        <li><strong>full_name</strong> - Complete name</li>
+        <li><strong>now_cost</strong> - Current price</li>
+        <li><strong>total_points</strong> - Total points last season</li>
+        <li><strong>points_per_game</strong> - Average points per game</li>
+        <li><strong>minutes</strong> - Minutes played</li>
+        <li><strong>goals_scored</strong>, <strong>assists</strong> - Goal contributions</li>
+        <li><strong>expected_goals</strong>, <strong>expected_assists</strong> - xG and xA stats</li>
+        <li><strong>clean_sheets</strong> - For defenders and goalkeepers</li>
+        <li><strong>saves</strong> - For goalkeepers</li>
+        <li>And many more FPL statistics...</li>
+    </ul>
+
+    <p><strong>Note:</strong> The import will update existing players (matched by name and team) with new stats.</p>
+</div>
+
+<div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <h3>💡 FPL Data Features</h3>
+    <p>This importer recognizes all standard FPL data fields including:</p>
+    <ul>
+        <li>ICT Index (Influence, Creativity, Threat)</li>
+        <li>Expected goals (xG) and assists (xA)</li>
+        <li>Bonus points and BPS</li>
+        <li>Per 90 minute statistics</li>
+        <li>Player availability status</li>
+    </ul>
+</div>
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('index') }}" class="btn">Back to Home</a>
+    <a href="{{ url_for('import_players') }}" class="btn" style="margin-left: 10px;">Use CSV Import Instead</a>
+</div>
+{% endblock %}

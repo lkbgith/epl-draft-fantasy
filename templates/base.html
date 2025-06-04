@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EPL Fantasy Draft</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #38003c;
+            border-bottom: 3px solid #00ff85;
+            padding-bottom: 10px;
+        }
+        .btn {
+            background-color: #38003c;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover {
+            background-color: #2d0030;
+        }
+        .player-card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .player-card.drafted {
+            background-color: #f0f0f0;
+            opacity: 0.6;
+        }
+        .position-badge {
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .position-GK { background-color: #ff6b6b; color: white; }
+        .position-DEF { background-color: #4ecdc4; color: white; }
+        .position-MID { background-color: #45b7d1; color: white; }
+        .position-FWD { background-color: #96ceb4; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚽ EPL Fantasy Draft System</h1>
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

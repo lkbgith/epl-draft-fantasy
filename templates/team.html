@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{{ team.name }}</h2>
+<p>Owner: {{ team.owner }}</p>
+
+<div class="roster">
+    {% for position, players in roster.items() %}
+    <div class="position-group">
+        <h3>{{ position }} ({{ players|length }})</h3>
+        {% if players %}
+            {% for player in players %}
+            <div class="player-card">
+                <strong>{{ player.name }}</strong>
+                <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
+                <span>{{ player.team }}</span>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p style="color: #999;">No players drafted yet</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<a href="{{ url_for('index') }}" class="btn">Back to Home</a>
+{% if draft and draft.is_active %}
+    <a href="{{ url_for('draft') }}" class="btn">Back to Draft</a>
+{% endif %}
+{% endblock %}

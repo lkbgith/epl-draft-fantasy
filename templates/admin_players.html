@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>All Players ({{ players|length }} total)</h2>
+
+<div style="overflow-x: auto;">
+    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <thead>
+            <tr style="background-color: #38003c; color: white;">
+                <th style="border: 1px solid #ddd; padding: 8px;">Name</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Position</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Team</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Price</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Points</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">PPG</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Goals</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Assists</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Minutes</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Drafted</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for player in players %}
+            <tr style="{% if player.drafted %}background-color: #f0f0f0;{% endif %}">
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ player.name }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
+                </td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ player.team }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    {% if player.now_cost %}£{{ player.now_cost }}m{% else %}-{% endif %}
+                </td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ player.total_points or 0 }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ player.points_per_game or 0 }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ player.goals_scored or 0 }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ player.assists or 0 }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ player.minutes or 0 }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    {% if player.drafted %}
+                        ✓ {{ player.draft_team.name if player.draft_team else 'Yes' }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div style="margin-top: 20px;">
+    <a href="/" class="btn">Back to Home</a>
+    <a href="/admin/database" class="btn">Database Info</a>
+</div>
+{% endblock %}
