@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import json
+import os
 # Add these imports to your app.py
 import pandas as pd
 import openpyxl
@@ -10,6 +11,11 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///fantasy_draft.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Create uploads folder if it doesn't exist
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)  # <-- Use exist_ok=True
 
 db = SQLAlchemy(app)
 
@@ -271,6 +277,8 @@ def import_excel():
         if not file.filename.endswith(('.xlsx', '.xls')):
             return render_template('import_excel.html', error='Please upload an Excel file')
 
+        filepath = None
+
         try:
             # Save the file temporarily
             filename = secure_filename(file.filename)
@@ -479,6 +487,11 @@ def export_database():
     except Exception as e:
         return jsonify({'error': str(e)})
 
+@app.route('/import_players')
+def import_players():
+    """Basic CSV import page - just redirects to Excel import for now"""
+    # For now, just redirect to the Excel import
+    return redirect(url_for('import_excel'))
 
 # One-time reset function (safe to keep in code)
 @app.route('/admin/reset_database')
