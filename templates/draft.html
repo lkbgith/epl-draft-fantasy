@@ -41,25 +41,23 @@
         <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
         <span style="color: #666;">{{ player.team }}</span>
 
-        {% if player.total_points or player.points_per_game %}
         <div style="font-size: 12px; color: #666; margin-top: 5px;">
-            {% if player.total_points %}
-                <span>Points: {{ player.total_points }}</span>
+            <span>Points: {{ player.total_points if player.total_points else "N/A" }}</span>
+            <span style="margin-left: 10px;">PPG: {{ "%.1f"|format(player.points_per_game) if player.points_per_game else "N/A" }}</span>
+            <span style="margin-left: 10px;">Min: {{ player.minutes if player.minutes else "N/A" }}</span>
+
+            {% if player.position in ['FWD', 'MID'] %}
+                <span style="margin-left: 10px;">G: {{ player.goals_scored if player.goals_scored is not none else 0 }} A: {{ player.assists if player.assists is not none else 0 }}</span>
+            {% elif player.position in ['DEF', 'GK'] %}
+                <span style="margin-left: 10px;">CS: {{ player.clean_sheets if player.clean_sheets is not none else 0 }}</span>
             {% endif %}
-            {% if player.points_per_game %}
-                <span style="margin-left: 10px;">PPG: {{ "%.1f"|format(player.points_per_game) }}</span>
-            {% endif %}
-            {% if player.minutes %}
-                <span style="margin-left: 10px;">Min: {{ player.minutes }}</span>
-            {% endif %}
-            {% if player.goals_scored or player.assists %}
-                <span style="margin-left: 10px;">G: {{ player.goals_scored or 0 }} A: {{ player.assists or 0 }}</span>
-            {% endif %}
+
             {% if player.now_cost %}
                 <span style="margin-left: 10px;">£{{ "%.1f"|format(player.now_cost) }}m</span>
+            {% else %}
+                <span style="margin-left: 10px;">£N/A</span>
             {% endif %}
         </div>
-        {% endif %}
     </div>
     <form method="POST" action="{{ url_for('draft_player', player_id=player.id) }}" style="display: inline;">
         <button type="submit" class="btn">Draft</button>
