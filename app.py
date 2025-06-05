@@ -6,6 +6,7 @@ import json
 import os
 # Add these imports to your app.py
 import pandas as pd
+import numpy as np
 import openpyxl
 
 app = Flask(__name__)
@@ -153,8 +154,12 @@ def index():
 def setup():
     if request.method == 'POST':
         # Clear existing data
-        db.drop_all()
-        db.create_all()
+        DraftTeam.query.delete()
+        Draft.query.delete()
+
+        # Reset all players to undrafted status
+        Player.query.update({'drafted': False, 'drafted_by': None})
+        db.session.commit()
 
         # Create teams
         team_names = request.form.getlist('team_names[]')
@@ -176,33 +181,6 @@ def setup():
             draft_order=json.dumps(draft_order)
         )
         db.session.add(draft)
-
-        # Add sample players (you can expand this)
-        sample_players = [
-            # Goalkeepers
-            {'name': 'Alisson', 'position': 'GK', 'team': 'Liverpool'},
-            {'name': 'Ederson', 'position': 'GK', 'team': 'Man City'},
-            {'name': 'Ramsdale', 'position': 'GK', 'team': 'Arsenal'},
-            # Defenders
-            {'name': 'Alexander-Arnold', 'position': 'DEF', 'team': 'Liverpool'},
-            {'name': 'Van Dijk', 'position': 'DEF', 'team': 'Liverpool'},
-            {'name': 'Cancelo', 'position': 'DEF', 'team': 'Man City'},
-            {'name': 'James', 'position': 'DEF', 'team': 'Chelsea'},
-            # Midfielders
-            {'name': 'Salah', 'position': 'MID', 'team': 'Liverpool'},
-            {'name': 'De Bruyne', 'position': 'MID', 'team': 'Man City'},
-            {'name': 'Fernandes', 'position': 'MID', 'team': 'Man United'},
-            {'name': 'Saka', 'position': 'MID', 'team': 'Arsenal'},
-            # Forwards
-            {'name': 'Haaland', 'position': 'FWD', 'team': 'Man City'},
-            {'name': 'Kane', 'position': 'FWD', 'team': 'Spurs'},
-            {'name': 'Jesus', 'position': 'FWD', 'team': 'Arsenal'},
-            {'name': 'Darwin', 'position': 'FWD', 'team': 'Liverpool'},
-        ]
-
-        for player_data in sample_players:
-            player = Player(**player_data)
-            db.session.add(player)
 
         db.session.commit()
         return redirect(url_for('draft'))
@@ -317,6 +295,9 @@ def import_fpl_excel(filepath):
         # Read the Excel file
         df = pd.read_excel(filepath, sheet_name='Player Data')
 
+        print("Excel columns found:", df.columns.tolist())
+        print("First row sample:", df.iloc[0].to_dict() if len(df) > 0 else "No data")
+
         # Map FPL positions to our positions
         position_map = {
             'GKP': 'GK',
@@ -414,6 +395,75 @@ def import_fpl_excel(filepath):
 
 
 # Admin Features
+
+@app.route('/debug_excel')
+def debug_excel():
+    """Debug route to check Excel file structure"""
+    try:
+        # Path to your uploaded Excel file
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'Draft Board 2024.xlsx')
+
+        if not os.path.exists(filepath):
+            return "No Excel file found. Please upload it first."
+
+        # Read Excel file
+        df = pd.read_excel(filepath, sheet_name='Player Data')
+
+        # Get info about the dataframe
+        info = {
+            'columns': df.columns.tolist(),
+            'shape': f"{len(df)} rows, {len(df.columns)} columns",
+            'first_row': df.iloc[0].to_dict() if len(df) > 0 else {},
+            'sample_data': []
+        }
+
+        # Get sample of first 3 players
+        for i in range(min(3, len(df))):
+            player_data = df.iloc[i].to_dict()
+            # Convert numpy types to Python types for JSON serialization
+            clean_data = {}
+            for k, v in player_data.items():
+                if pd.isna(v):
+                    clean_data[k] = None
+                elif isinstance(v, (np.integer, np.int64)):
+                    clean_data[k] = int(v)
+                elif isinstance(v, (np.floating, np.float64)):
+                    clean_data[k] = float(v)
+                else:
+                    clean_data[k] = str(v)
+            info['sample_data'].append(clean_data)
+
+        return f"<pre>{json.dumps(info, indent=2)}</pre>"
+
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+@app.route('/check_player_stats')
+def check_player_stats():
+    """Check what stats are actually in the database"""
+    players = Player.query.limit(5).all()
+
+    if not players:
+        return "No players in database!"
+
+    output = "<h2>Player Stats Check</h2>"
+
+    for player in players:
+        output += f"<h3>{player.name} - {player.team}</h3>"
+        output += "<ul>"
+
+        # Check all the stats fields
+        stats_fields = ['total_points', 'points_per_game', 'minutes', 'goals_scored',
+                        'assists', 'clean_sheets', 'expected_goals', 'now_cost']
+
+        for field in stats_fields:
+            value = getattr(player, field, 'FIELD MISSING')
+            output += f"<li>{field}: {value}</li>"
+
+        output += "</ul>"
+
+    return output
 
 @app.route('/admin/database')
 def admin_database():

@@ -11,6 +11,19 @@
     <div style="flex: 2;">
         <h3>Available Players</h3>
 
+<div style="margin: 10px 0; padding: 10px; background-color: #f5f5f5; border-radius: 4px;">
+    <label style="margin-right: 10px;">Sort by:</label>
+    <select onchange="window.location.href='{{ url_for('draft') }}?sort=' + this.value + '&position={{ current_position }}'">
+        <option value="total_points" {% if current_sort =='total_points' %}selected{% endif %}>Total Points</option>
+        <option value="points_per_game" {% if current_sort =='points_per_game' %}selected{% endif %}>Points Per Game</option>
+        <option value="now_cost" {% if current_sort =='now_cost' %}selected{% endif %}>Price</option>
+        <option value="goals_scored" {% if current_sort =='goals_scored' %}selected{% endif %}>Goals</option>
+        <option value="assists" {% if current_sort =='assists' %}selected{% endif %}>Assists</option>
+        <option value="minutes" {% if current_sort =='minutes' %}selected{% endif %}>Minutes</option>
+        <option value="name" {% if current_sort =='name' %}selected{% endif %}>Name</option>
+    </select>
+</div>
+
         <div class="filter-buttons" style="margin: 10px 0;">
             <button onclick="filterPlayers('all')" class="btn">All</button>
             <button onclick="filterPlayers('GK')" class="btn">GK</button>
@@ -19,31 +32,39 @@
             <button onclick="filterPlayers('FWD')" class="btn">FWD</button>
         </div>
 
+
         <div class="player-list">
             {% for player in available_players %}
-            <div class="player-card" data-position="{{ player.position }}" style="padding: 15px;">
-                <div style="flex: 1;">
-                    <strong>{{ player.name }}</strong>
-                    <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
-                    <span style="color: #666;">{{ player.team }}</span>
+<div class="player-card" data-position="{{ player.position }}" style="padding: 15px;">
+    <div style="flex: 1;">
+        <strong>{{ player.name }}</strong>
+        <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
+        <span style="color: #666;">{{ player.team }}</span>
 
-                    {% if player.points_last_season > 0 %}
-                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                        <span>Points: {{ player.points_last_season }}</span>
-                        {% if player.games_played > 0 %}
-                        <span style="margin-left: 10px;">PPG: {{ player.points_per_game }}</span>
-                        <span style="margin-left: 10px;">Games: {{ player.games_played }}</span>
-                        {% endif %}
-                        {% if player.goals > 0 or player.assists > 0 %}
-                        <span style="margin-left: 10px;">G: {{ player.goals }} A: {{ player.assists }}</span>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                </div>
-                <form method="POST" action="{{ url_for('draft_player', player_id=player.id) }}" style="display: inline;">
-                    <button type="submit" class="btn">Draft</button>
-                </form>
-            </div>
+        {% if player.total_points or player.points_per_game %}
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">
+            {% if player.total_points %}
+                <span>Points: {{ player.total_points }}</span>
+            {% endif %}
+            {% if player.points_per_game %}
+                <span style="margin-left: 10px;">PPG: {{ "%.1f"|format(player.points_per_game) }}</span>
+            {% endif %}
+            {% if player.minutes %}
+                <span style="margin-left: 10px;">Min: {{ player.minutes }}</span>
+            {% endif %}
+            {% if player.goals_scored or player.assists %}
+                <span style="margin-left: 10px;">G: {{ player.goals_scored or 0 }} A: {{ player.assists or 0 }}</span>
+            {% endif %}
+            {% if player.now_cost %}
+                <span style="margin-left: 10px;">£{{ "%.1f"|format(player.now_cost) }}m</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <form method="POST" action="{{ url_for('draft_player', player_id=player.id) }}" style="display: inline;">
+        <button type="submit" class="btn">Draft</button>
+    </form>
+</div>
             {% endfor %}
         </div>
     </div>
