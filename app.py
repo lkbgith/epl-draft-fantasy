@@ -195,7 +195,40 @@ def draft():
         return redirect(url_for('setup'))
 
     teams = DraftTeam.query.all()
-    available_players = Player.query.filter_by(drafted=False).all()
+
+    # Get sorting preference from URL parameters
+    sort_by = request.args.get('sort', 'total_points')
+    position_filter = request.args.get('position', 'all')
+
+    # Build query
+    query = Player.query.filter_by(drafted=False)
+
+    # Apply position filter
+    if position_filter != 'all':
+        query = query.filter_by(position=position_filter)
+
+    # Apply sorting - handle None values by using coalesce
+    from sqlalchemy import desc, nullslast
+
+    if sort_by == 'name':
+        query = query.order_by(Player.second_name)
+    elif sort_by == 'total_points':
+        query = query.order_by(nullslast(desc(Player.total_points)))
+    elif sort_by == 'points_per_game':
+        query = query.order_by(nullslast(desc(Player.points_per_game)))
+    elif sort_by == 'now_cost':
+        query = query.order_by(nullslast(desc(Player.now_cost)))
+    elif sort_by == 'goals_scored':
+        query = query.order_by(nullslast(desc(Player.goals_scored)))
+    elif sort_by == 'assists':
+        query = query.order_by(nullslast(desc(Player.assists)))
+    elif sort_by == 'minutes':
+        query = query.order_by(nullslast(desc(Player.minutes)))
+    else:
+        # Default sort
+        query = query.order_by(nullslast(desc(Player.total_points)))
+
+    available_players = query.all()
 
     draft_order = json.loads(draft.draft_order)
     current_team_id = draft_order[draft.current_team_index]
@@ -205,7 +238,9 @@ def draft():
                            draft=draft,
                            teams=teams,
                            available_players=available_players,
-                           current_team=current_team)
+                           current_team=current_team,
+                           current_sort=sort_by,
+                           current_position=position_filter)
 
 
 @app.route('/draft_player/<int:player_id>', methods=['POST'])
