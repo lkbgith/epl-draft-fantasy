@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{{ team.name }}'s Wishlist</h2>
+<p>Owner: {{ team.owner }}</p>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <!-- Wishlist Column -->
+    <div>
+        <h3>My Wishlist (Drag to Reorder)</h3>
+        
+        <div id="wishlist" style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; min-height: 200px;">
+            {% if wishlist %}
+                {% for item in wishlist %}
+                <div class="wishlist-item" data-player-id="{{ item.player.id }}" 
+                     style="background: white; padding: 10px; margin: 5px 0; border-radius: 4px; cursor: move; border: 1px solid #ddd;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>#{{ item.rank }}. {{ item.player.name }}</strong>
+                            <span class="position-badge position-{{ item.player.position }}">{{ item.player.position }}</span>
+                            <span style="color: #666;">{{ item.player.team }}</span>
+                            
+                            {% if item.player.drafted %}
+                                <span style="color: red; font-weight: bold;">[DRAFTED]</span>
+                            {% endif %}
+                            
+                            <div style="font-size: 12px; color: #666;">
+                                Points: {{ item.player.total_points or 'N/A' }} | 
+                                PPG: {{ "%.1f"|format(item.player.points_per_game) if item.player.points_per_game else 'N/A' }}
+                            </div>
+                        </div>
+                        
+                        <form method="POST" action="{{ url_for('remove_from_wishlist', team_id=team.id, player_id=item.player.id) }}" style="display: inline;">
+                            <button type="submit" class="btn" style="background-color: #d32f2f; padding: 5px 10px; font-size: 12px;">Remove</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color: #666; text-align: center;">No players in wishlist yet</p>
+            {% endif %}
+        </div>
+        
+        <div style="margin-top: 10px; font-size: 12px; color: #666;">
+            💡 Tip: Drag players to reorder your wishlist. #1 is your top priority.
+        </div>
+    </div>
+    
+    <!-- Available Players Column -->
+    <div>
+        <h3>Add Players to Wishlist</h3>
+        
+        <div style="margin-bottom: 10px;">
+            <input type="text" id="playerSearch" placeholder="Search players..." 
+                   style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+        
+        <div style="height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
+            {% for player in available_players %}
+            <div class="player-option" style="background: #f9f9f9; padding: 8px; margin: 5px 0; border-radius: 4px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>{{ player.name }}</strong>
+                        <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
+                        <span style="color: #666;">{{ player.team }}</span>
+                        <div style="font-size: 11px; color: #666;">
+                            Pts: {{ player.total_points or 0 }} | £{{ "%.1f"|format(player.now_cost) if player.now_cost else 'N/A' }}m
+                        </div>
+                    </div>
+                    
+                    <form method="POST" action="{{ url_for('add_to_wishlist', team_id=team.id, player_id=player.id) }}" style="display: inline;">
+                        <button type="submit" class="btn" style="padding: 5px 10px; font-size: 12px;">Add</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('view_team', team_id=team.id) }}" class="btn">Back to Team</a>
+    <a href="{{ url_for('draft') }}" class="btn">Back to Draft</a>
+</div>
+
+<script>
+// Simple search functionality
+document.getElementById('playerSearch').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const players = document.querySelectorAll('.player-option');
+    
+    players.forEach(player => {
+        const text = player.textContent.toLowerCase();
+        player.style.display = text.includes(searchTerm) ? 'block' : 'none';
+    });
+});
+
+// Drag and drop functionality
+let draggedElement = null;
+
+document.querySelectorAll('.wishlist-item').forEach(item => {
+    item.draggable = true;
+    
+    item.addEventListener('dragstart', function(e) {
+        draggedElement = this;
+        this.style.opacity = '0.5';
+    });
+    
+    item.addEventListener('dragend', function(e) {
+        this.style.opacity = '';
+    });
+    
+    item.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.style.borderTop = '3px solid #38003c';
+    });
+    
+    item.addEventListener('dragleave', function(e) {
+        this.style.borderTop = '';
+    });
+    
+    item.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.style.borderTop = '';
+        
+        if (this !== draggedElement) {
+            const wishlist = document.getElementById('wishlist');
+            wishlist.insertBefore(draggedElement, this);
+            
+            // Update order in database
+            const items = document.querySelectorAll('.wishlist-item');
+            const newOrder = Array.from(items).map(item => parseInt(item.dataset.playerId));
+            
+            fetch(`/team/{{ team.id }}/wishlist/reorder`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({order: newOrder})
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

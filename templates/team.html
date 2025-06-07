@@ -3,6 +3,12 @@
 <h2>{{ team.name }}</h2>
 <p>Owner: {{ team.owner }}</p>
 
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('team_wishlist', team_id=team.id) }}" class="btn">📋 Manage Wishlist</a>
+</div>
+
+
 <div class="roster">
     {% for position, players in roster.items() %}
     <div class="position-group">

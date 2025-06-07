@@ -175,6 +175,23 @@ class Draft(db.Model):
             self.current_team_index = 0
 
 
+class Wishlist(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('draft_team.id'), nullable=False)
+    player_id = db.Column(db.Integer, db.ForeignKey('player.id'), nullable=False)
+    rank = db.Column(db.Integer, nullable=False)  # 1 = highest priority
+    position_filter = db.Column(db.String(20))  # Optional: filter by position
+    notes = db.Column(db.String(200))  # Optional notes
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    team = db.relationship('DraftTeam', backref='wishlist_items')
+    player = db.relationship('Player', backref='wishlist_entries')
+
+    # Ensure unique player per team
+    __table_args__ = (db.UniqueConstraint('team_id', 'player_id'),)
+
+
 # Routes
 @app.route('/')
 def index():
@@ -313,6 +330,87 @@ def draft_player(player_id):
     db.session.commit()
 
     return redirect(url_for('draft'))
+
+
+@app.route('/team/<int:team_id>/wishlist')
+def team_wishlist(team_id):
+    team = DraftTeam.query.get_or_404(team_id)
+
+    # Get wishlist items ordered by rank
+    wishlist = Wishlist.query.filter_by(team_id=team_id).order_by(Wishlist.rank).all()
+
+    # Get available players for adding to wishlist
+    wishlisted_player_ids = [w.player_id for w in wishlist]
+    available_players = Player.query.filter(
+        Player.drafted == False,
+        ~Player.id.in_(wishlisted_player_ids) if wishlisted_player_ids else True
+    ).order_by(Player.total_points.desc()).all()
+
+    return render_template('wishlist.html',
+                           team=team,
+                           wishlist=wishlist,
+                           available_players=available_players)
+
+
+@app.route('/team/<int:team_id>/wishlist/add/<int:player_id>', methods=['POST'])
+def add_to_wishlist(team_id, player_id):
+    team = DraftTeam.query.get_or_404(team_id)
+    player = Player.query.get_or_404(player_id)
+
+    # Check if already in wishlist
+    existing = Wishlist.query.filter_by(team_id=team_id, player_id=player_id).first()
+    if existing:
+        return jsonify({'error': 'Player already in wishlist'}), 400
+
+    # Get next rank number
+    max_rank = db.session.query(db.func.max(Wishlist.rank)).filter_by(team_id=team_id).scalar() or 0
+
+    # Add to wishlist
+    wishlist_item = Wishlist(
+        team_id=team_id,
+        player_id=player_id,
+        rank=max_rank + 1
+    )
+    db.session.add(wishlist_item)
+    db.session.commit()
+
+    return redirect(url_for('team_wishlist', team_id=team_id))
+
+
+@app.route('/team/<int:team_id>/wishlist/remove/<int:player_id>', methods=['POST'])
+def remove_from_wishlist(team_id, player_id):
+    wishlist_item = Wishlist.query.filter_by(team_id=team_id, player_id=player_id).first_or_404()
+
+    # Get items that need to move up in rank
+    items_to_update = Wishlist.query.filter(
+        Wishlist.team_id == team_id,
+        Wishlist.rank > wishlist_item.rank
+    ).all()
+
+    # Remove the item
+    db.session.delete(wishlist_item)
+
+    # Update ranks
+    for item in items_to_update:
+        item.rank -= 1
+
+    db.session.commit()
+    return redirect(url_for('team_wishlist', team_id=team_id))
+
+
+@app.route('/team/<int:team_id>/wishlist/reorder', methods=['POST'])
+def reorder_wishlist(team_id):
+    """Update wishlist order via drag and drop"""
+    new_order = request.json.get('order', [])
+
+    for index, player_id in enumerate(new_order):
+        Wishlist.query.filter_by(
+            team_id=team_id,
+            player_id=player_id
+        ).update({'rank': index + 1})
+
+    db.session.commit()
+    return jsonify({'success': True})
 
 
 @app.route('/team/<int:team_id>')
