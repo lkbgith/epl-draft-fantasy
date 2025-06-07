@@ -3,8 +3,14 @@
 <h2>Draft in Progress</h2>
 
 <div class="current-pick" style="background-color: #e3f2fd; padding: 20px; margin: 20px 0; border-radius: 4px;">
-    <h3>Current Pick: #{{ draft.current_pick }}</h3>
+    <h3>Round {{ current_round }}, Pick #{{ draft.current_pick }}</h3>
     <h4>{{ current_team.name }} ({{ current_team.owner }}) is on the clock!</h4>
+
+    {% if is_reverse_round %}
+    <div style="margin-top: 10px; font-size: 14px; color: #666;">
+        🐍 <em>Snake draft - Round {{ current_round }} goes in reverse order!</em>
+    </div>
+    {% endif %}
 </div>
 
 <div style="display: flex; gap: 20px;">
@@ -67,16 +73,35 @@
         </div>
     </div>
 
-    <div style="flex: 1;">
-        <h3>Draft Order</h3>
-        <ol>
-            {% for team in teams %}
-            <li {% if team.id == current_team.id %}style="font-weight: bold; color: #38003c;"{% endif %}>
-                {{ team.name }} ({{ team.players|length }} players)
-            </li>
-            {% endfor %}
-        </ol>
+<div style="flex: 1;">
+    <h3>Draft Order {% if is_reverse_round %}(Reversed - Round {{ current_round }}){% endif %}</h3>
+
+    <div style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+        {% if is_reverse_round %}
+            <span style="font-size: 20px;">🐍 ← </span>
+        {% else %}
+            <span style="font-size: 20px;">🐍 → </span>
+        {% endif %}
+        <span style="font-size: 12px; color: #666;">Snake Draft Active</span>
     </div>
+
+    <ol>
+        {% for team in display_teams %}
+        <li {% if team.id == current_team.id %}style="font-weight: bold; color: #38003c; background-color: #e3f2fd; padding: 5px; margin: -5px;"{% endif %}>
+            {{ team.name }} ({{ team.players|length }} players)
+        </li>
+        {% endfor %}
+    </ol>
+
+    <div style="margin-top: 10px; font-size: 12px; color: #666;">
+        <strong>Upcoming picks:</strong><br>
+        {% if is_reverse_round %}
+            After this round: Order reverses back →
+        {% else %}
+            After this round: Order reverses ←
+        {% endif %}
+    </div>
+</div>
 </div>
 
 <script>

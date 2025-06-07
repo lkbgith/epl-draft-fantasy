@@ -140,6 +140,39 @@ class Draft(db.Model):
     total_teams = db.Column(db.Integer)
     is_active = db.Column(db.Boolean, default=True)
     draft_order = db.Column(db.Text)  # JSON string of team IDs
+    is_snake_draft = db.Column(db.Boolean, default=True)  # New field!
+
+    @property
+    def current_round(self):
+        """Calculate what round we're in"""
+        if self.total_teams == 0:
+            return 1
+        return ((self.current_pick - 1) // self.total_teams) + 1
+
+    @property
+    def is_reverse_round(self):
+        """Check if this round should go in reverse order"""
+        return self.is_snake_draft and (self.current_round % 2 == 0)
+
+    def get_current_team_id(self):
+        """Get the current team ID considering snake draft"""
+        draft_order = json.loads(self.draft_order)
+
+        if self.is_reverse_round:
+            # Reverse the order for even rounds
+            actual_index = self.total_teams - 1 - self.current_team_index
+            return draft_order[actual_index]
+        else:
+            return draft_order[self.current_team_index]
+
+    def advance_to_next_pick(self):
+        """Move to the next pick in snake draft order"""
+        self.current_pick += 1
+        self.current_team_index += 1
+
+        # Reset team index when we complete a round
+        if self.current_team_index >= self.total_teams:
+            self.current_team_index = 0
 
 
 # Routes
@@ -200,14 +233,14 @@ def draft():
     sort_by = request.args.get('sort', 'total_points')
     position_filter = request.args.get('position', 'all')
 
-    # Build query
+    # Build query for available players
     query = Player.query.filter_by(drafted=False)
 
     # Apply position filter
     if position_filter != 'all':
         query = query.filter_by(position=position_filter)
 
-    # Apply sorting - handle None values by using coalesce
+    # Apply sorting
     from sqlalchemy import desc, nullslast
 
     if sort_by == 'name':
@@ -225,14 +258,24 @@ def draft():
     elif sort_by == 'minutes':
         query = query.order_by(nullslast(desc(Player.minutes)))
     else:
-        # Default sort
         query = query.order_by(nullslast(desc(Player.total_points)))
 
     available_players = query.all()
 
-    draft_order = json.loads(draft.draft_order)
-    current_team_id = draft_order[draft.current_team_index]
+    # Get current team using snake draft logic
+    current_team_id = draft.get_current_team_id()
     current_team = DraftTeam.query.get(current_team_id)
+
+    # Create draft order display
+    draft_order_ids = json.loads(draft.draft_order)
+    if draft.is_reverse_round:
+        # Show reversed order for even rounds
+        display_order = list(reversed(draft_order_ids))
+    else:
+        display_order = draft_order_ids
+
+    # Get team objects in display order
+    display_teams = [DraftTeam.query.get(team_id) for team_id in display_order]
 
     return render_template('draft.html',
                            draft=draft,
@@ -240,7 +283,10 @@ def draft():
                            available_players=available_players,
                            current_team=current_team,
                            current_sort=sort_by,
-                           current_position=position_filter)
+                           current_position=position_filter,
+                           display_teams=display_teams,
+                           current_round=draft.current_round,
+                           is_reverse_round=draft.is_reverse_round)
 
 
 @app.route('/draft_player/<int:player_id>', methods=['POST'])
@@ -253,18 +299,16 @@ def draft_player(player_id):
     if not player or player.drafted:
         return jsonify({'error': 'Player not available'}), 400
 
-    # Get current team
-    draft_order = json.loads(draft.draft_order)
-    current_team_id = draft_order[draft.current_team_index]
+    # Get current team using snake draft logic
+    current_team_id = draft.get_current_team_id()
     current_team = DraftTeam.query.get(current_team_id)
 
     # Draft the player
     player.drafted = True
     player.drafted_by = current_team.id
 
-    # Move to next pick
-    draft.current_pick += 1
-    draft.current_team_index = (draft.current_team_index + 1) % draft.total_teams
+    # Advance to next pick
+    draft.advance_to_next_pick()
 
     db.session.commit()
 
