@@ -216,4 +216,109 @@ document.querySelectorAll('.wishlist-item').forEach(item => {
     });
 });
 </script>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script>
+    // Connect to WebSocket
+    const socket = io();
+    const currentTeamId = {{ team.id }};
+
+    // Listen for any player being drafted
+    socket.on('player_drafted', function(data) {
+        // Check if this player is in our wishlist
+        const wishlistItem = document.querySelector(`[data-player-id="${data.player_id}"]`);
+        if (wishlistItem) {
+            // Mark as drafted
+            wishlistItem.style.backgroundColor = '#ffebee';
+            wishlistItem.style.opacity = '0.6';
+
+            // Add drafted indicator
+            const nameElement = wishlistItem.querySelector('strong');
+            if (!nameElement.textContent.includes('[DRAFTED]')) {
+                nameElement.innerHTML += ' <span style="color: red; font-weight: bold;">[DRAFTED]</span>';
+            }
+
+            // Show notification
+            showNotification(`❌ ${data.player_name} was drafted by ${data.team_name}`, 'warning');
+        }
+    });
+
+    // Listen for wishlist-specific notifications
+    socket.on('wishlist_player_drafted', function(data) {
+        // Check if we're one of the affected teams
+        const affected = data.affected_teams.find(team => team.team_id === currentTeamId);
+        if (affected) {
+            // Show special notification for high-priority players
+            if (affected.rank <= 5) {
+                showNotification(
+                    `🚨 Your #${affected.rank} wishlist player ${data.player_name} was drafted by ${data.drafted_by}!`,
+                    'error',
+                    5000  // Show for longer
+                );
+
+                // Play sound for top 5 picks (optional)
+                // new Audio('/static/alert.mp3').play();
+            }
+        }
+    });
+
+    // Function to show notifications
+    function showNotification(message, type = 'info', duration = 3000) {
+        const notification = document.createElement('div');
+        const colors = {
+            'info': '#2196F3',
+            'warning': '#ff9800',
+            'error': '#f44336',
+            'success': '#4CAF50'
+        };
+
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${colors[type]};
+            color: white;
+            padding: 15px 20px;
+            border-radius: 4px;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease-out;
+            max-width: 300px;
+        `;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+
+        // Remove notification after duration
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease-out';
+            setTimeout(() => notification.remove(), 300);
+        }, duration);
+    }
+
+    // Add CSS animations
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Update the visual state of drafted players on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const draftedPlayers = document.querySelectorAll('.wishlist-item');
+        draftedPlayers.forEach(item => {
+            if (item.textContent.includes('[DRAFTED]')) {
+                item.style.backgroundColor = '#ffebee';
+                item.style.opacity = '0.6';
+            }
+        });
+    });
+</script>
+
 {% endblock %}

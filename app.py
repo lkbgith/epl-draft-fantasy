@@ -324,17 +324,38 @@ def draft_player(player_id):
     player.drafted = True
     player.drafted_by = current_team.id
 
+    # Check which teams had this player on their wishlist
+    wishlist_entries = Wishlist.query.filter_by(player_id=player_id).all()
+    affected_teams = []
+    for entry in wishlist_entries:
+        if entry.team_id != current_team_id:  # Don't notify the team that drafted the player
+            affected_teams.append({
+                'team_id': entry.team_id,
+                'team_name': entry.team.name,
+                'rank': entry.rank
+            })
+
     # Advance to next pick
     draft.advance_to_next_pick()
 
     db.session.commit()
 
-    # EMIT REAL-TIME UPDATE TO ALL CLIENTS
+    # Emit general draft update
     socketio.emit('player_drafted', {
         'player_name': player.name,
+        'player_id': player.id,
         'team_name': current_team.name,
         'next_team_id': draft.get_current_team_id()
-    }, to='/')
+    })
+
+    # Emit wishlist notifications
+    if affected_teams:
+        socketio.emit('wishlist_player_drafted', {
+            'player_name': player.name,
+            'player_id': player.id,
+            'drafted_by': current_team.name,
+            'affected_teams': affected_teams
+        })
 
     return redirect(url_for('draft'))
 
