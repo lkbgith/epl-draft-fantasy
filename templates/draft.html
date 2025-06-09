@@ -118,10 +118,29 @@ function filterPlayers(position) {
 </script>
 
 
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script>
-// Simple auto-refresh every 5 seconds for everyone
-setInterval(function() {
-    location.reload();
-}, 5000);
+    // Connect to WebSocket
+    const socket = io();
+
+    // Listen for draft updates
+    socket.on('player_drafted', function(data) {
+        // Show notification
+        const notification = document.createElement('div');
+        notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; padding: 15px; border-radius: 4px; z-index: 1000;';
+        notification.textContent = `${data.player_name} drafted by ${data.team_name}!`;
+        document.body.appendChild(notification);
+
+        // Remove notification after 3 seconds
+        setTimeout(() => notification.remove(), 3000);
+
+        // Refresh page after short delay
+        setTimeout(() => location.reload(), 1000);
+    });
+
+    // Optional: Show connection status
+    socket.on('connect', function() {
+        console.log('Connected to draft updates!');
+    });
 </script>
 {% endblock %}

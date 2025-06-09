@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_socketio import SocketIO, emit
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import json
@@ -20,7 +21,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)  # <-- Use exist_ok=True
 
 db = SQLAlchemy(app)
-
+socketio = SocketIO(app)
 
 # Database Models
 class Player(db.Model):
@@ -327,6 +328,13 @@ def draft_player(player_id):
     draft.advance_to_next_pick()
 
     db.session.commit()
+
+    # EMIT REAL-TIME UPDATE TO ALL CLIENTS
+    socketio.emit('player_drafted', {
+        'player_name': player.name,
+        'team_name': current_team.name,
+        'next_team_id': draft.get_current_team_id()
+    }, to='/')
 
     return redirect(url_for('draft'))
 
@@ -792,4 +800,4 @@ base_html = '''
 '''
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
