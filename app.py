@@ -343,20 +343,55 @@ def draft_player(player_id):
 def team_wishlist(team_id):
     team = DraftTeam.query.get_or_404(team_id)
 
+    # Get sorting and filtering preferences from URL parameters
+    sort_by = request.args.get('sort', 'total_points')
+    position_filter = request.args.get('position', 'all')
+
     # Get wishlist items ordered by rank
     wishlist = Wishlist.query.filter_by(team_id=team_id).order_by(Wishlist.rank).all()
 
     # Get available players for adding to wishlist
     wishlisted_player_ids = [w.player_id for w in wishlist]
-    available_players = Player.query.filter(
-        Player.drafted == False,
-        ~Player.id.in_(wishlisted_player_ids) if wishlisted_player_ids else True
-    ).order_by(Player.total_points.desc()).all()
+
+    # Build query for available players
+    query = Player.query.filter(Player.drafted == False)
+
+    # Exclude already wishlisted players
+    if wishlisted_player_ids:
+        query = query.filter(~Player.id.in_(wishlisted_player_ids))
+
+    # Apply position filter
+    if position_filter != 'all':
+        query = query.filter_by(position=position_filter)
+
+    # Apply sorting
+    from sqlalchemy import desc, nullslast
+
+    if sort_by == 'name':
+        query = query.order_by(Player.second_name)
+    elif sort_by == 'total_points':
+        query = query.order_by(nullslast(desc(Player.total_points)))
+    elif sort_by == 'points_per_game':
+        query = query.order_by(nullslast(desc(Player.points_per_game)))
+    elif sort_by == 'now_cost':
+        query = query.order_by(nullslast(desc(Player.now_cost)))
+    elif sort_by == 'goals_scored':
+        query = query.order_by(nullslast(desc(Player.goals_scored)))
+    elif sort_by == 'assists':
+        query = query.order_by(nullslast(desc(Player.assists)))
+    elif sort_by == 'minutes':
+        query = query.order_by(nullslast(desc(Player.minutes)))
+    else:
+        query = query.order_by(nullslast(desc(Player.total_points)))
+
+    available_players = query.all()
 
     return render_template('wishlist.html',
                            team=team,
                            wishlist=wishlist,
-                           available_players=available_players)
+                           available_players=available_players,
+                           current_sort=sort_by,
+                           current_position=position_filter)
 
 
 @app.route('/team/<int:team_id>/wishlist/add/<int:player_id>', methods=['POST'])

@@ -14,23 +14,27 @@
                 <div class="wishlist-item" data-player-id="{{ item.player.id }}" 
                      style="background: white; padding: 10px; margin: 5px 0; border-radius: 4px; cursor: move; border: 1px solid #ddd;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
+                        <div style="flex: 1;">
                             <strong>#{{ item.rank }}. {{ item.player.name }}</strong>
                             <span class="position-badge position-{{ item.player.position }}">{{ item.player.position }}</span>
                             <span style="color: #666;">{{ item.player.team }}</span>
-                            
+
                             {% if item.player.drafted %}
                                 <span style="color: red; font-weight: bold;">[DRAFTED]</span>
                             {% endif %}
-                            
+
                             <div style="font-size: 12px; color: #666;">
-                                Points: {{ item.player.total_points or 'N/A' }} | 
+                                {% if item.player.now_cost %}£{{ "%.1f"|format(item.player.now_cost) }}m | {% endif %}
+                                Points: {{ item.player.total_points or 'N/A' }} |
                                 PPG: {{ "%.1f"|format(item.player.points_per_game) if item.player.points_per_game else 'N/A' }}
+                                {% if item.player.goals_scored or item.player.assists %}
+                                    | G: {{ item.player.goals_scored or 0 }} A: {{ item.player.assists or 0 }}
+                                {% endif %}
                             </div>
                         </div>
-                        
+
                         <form method="POST" action="{{ url_for('remove_from_wishlist', team_id=team.id, player_id=item.player.id) }}" style="display: inline;">
-                            <button type="submit" class="btn" style="background-color: #d32f2f; padding: 5px 10px; font-size: 12px;">Remove</button>
+                            <button type="submit" class="btn" style="background-color: #d32f2f; padding: 5px 10px; font-size: 12px;">×</button>
                         </form>
                     </div>
                 </div>
@@ -39,38 +43,103 @@
                 <p style="color: #666; text-align: center;">No players in wishlist yet</p>
             {% endif %}
         </div>
-        
+
         <div style="margin-top: 10px; font-size: 12px; color: #666;">
             💡 Tip: Drag players to reorder your wishlist. #1 is your top priority.
         </div>
+
+        <!-- Wishlist position summary -->
+        <div style="margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 4px;">
+            <h4 style="margin: 0 0 10px 0;">Wishlist Summary</h4>
+            <div style="font-size: 12px;">
+                {% set pos_counts = {} %}
+                {% for item in wishlist if not item.player.drafted %}
+                    {% set _ = pos_counts.update({item.player.position: pos_counts.get(item.player.position, 0) + 1}) %}
+                {% endfor %}
+
+                {% for pos in ['GK', 'DEF', 'MID', 'FWD'] %}
+                    <span class="position-badge position-{{ pos }}">{{ pos }}</span>: {{ pos_counts.get(pos, 0) }}
+                    {% if not loop.last %} | {% endif %}
+                {% endfor %}
+            </div>
+        </div>
     </div>
-    
+
     <!-- Available Players Column -->
     <div>
         <h3>Add Players to Wishlist</h3>
-        
+
+        <!-- Filter Controls -->
+        <div style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+            <!-- Position Filter -->
+            <div class="filter-buttons" style="margin-bottom: 10px;">
+                <a href="{{ url_for('team_wishlist', team_id=team.id, position='all', sort=current_sort) }}"
+                   class="btn {% if current_position == 'all' %}active{% endif %}"
+                   style="padding: 5px 10px; font-size: 12px; {% if current_position == 'all' %}background-color: #2d0030;{% endif %}">All</a>
+                <a href="{{ url_for('team_wishlist', team_id=team.id, position='GK', sort=current_sort) }}"
+                   class="btn {% if current_position == 'GK' %}active{% endif %}"
+                   style="padding: 5px 10px; font-size: 12px; {% if current_position == 'GK' %}background-color: #2d0030;{% endif %}">GK</a>
+                <a href="{{ url_for('team_wishlist', team_id=team.id, position='DEF', sort=current_sort) }}"
+                   class="btn {% if current_position == 'DEF' %}active{% endif %}"
+                   style="padding: 5px 10px; font-size: 12px; {% if current_position == 'DEF' %}background-color: #2d0030;{% endif %}">DEF</a>
+                <a href="{{ url_for('team_wishlist', team_id=team.id, position='MID', sort=current_sort) }}"
+                   class="btn {% if current_position == 'MID' %}active{% endif %}"
+                   style="padding: 5px 10px; font-size: 12px; {% if current_position == 'MID' %}background-color: #2d0030;{% endif %}">MID</a>
+                <a href="{{ url_for('team_wishlist', team_id=team.id, position='FWD', sort=current_sort) }}"
+                   class="btn {% if current_position == 'FWD' %}active{% endif %}"
+                   style="padding: 5px 10px; font-size: 12px; {% if current_position == 'FWD' %}background-color: #2d0030;{% endif %}">FWD</a>
+            </div>
+
+            <!-- Sort Dropdown -->
+            <div>
+                <label style="font-size: 12px;">Sort by:</label>
+                <select onchange="window.location.href='{{ url_for('team_wishlist', team_id=team.id) }}?position={{ current_position }}&sort=' + this.value"
+                        style="font-size: 12px; padding: 3px;">
+                    <option value="total_points" {% if current_sort =='total_points' %}selected{% endif %}>Total Points</option>
+                    <option value="points_per_game" {% if current_sort =='points_per_game' %}selected{% endif %}>Points Per Game</option>
+                    <option value="now_cost" {% if current_sort =='now_cost' %}selected{% endif %}>Price</option>
+                    <option value="goals_scored" {% if current_sort =='goals_scored' %}selected{% endif %}>Goals</option>
+                    <option value="assists" {% if current_sort =='assists' %}selected{% endif %}>Assists</option>
+                    <option value="minutes" {% if current_sort =='minutes' %}selected{% endif %}>Minutes</option>
+                    <option value="name" {% if current_sort =='name' %}selected{% endif %}>Name</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Search Box -->
         <div style="margin-bottom: 10px;">
-            <input type="text" id="playerSearch" placeholder="Search players..." 
+            <input type="text" id="playerSearch" placeholder="Search players by name or team..."
                    style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
         </div>
-        
+
+        <!-- Player List -->
         <div style="height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
+            <div style="font-size: 11px; color: #666; margin-bottom: 5px;">
+                Showing {{ available_players|length }} players
+            </div>
+
             {% for player in available_players %}
-            <div class="player-option" style="background: #f9f9f9; padding: 8px; margin: 5px 0; border-radius: 4px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <strong>{{ player.name }}</strong>
-                        <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
-                        <span style="color: #666;">{{ player.team }}</span>
-                        <div style="font-size: 11px; color: #666;">
-                            Pts: {{ player.total_points or 0 }} | £{{ "%.1f"|format(player.now_cost) if player.now_cost else 'N/A' }}m
-                        </div>
+            <div class="player-option" data-name="{{ player.name|lower }}" data-team="{{ player.team|lower }}"
+                 style="background: #f9f9f9; padding: 8px; margin: 5px 0; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="flex: 1;">
+                    <strong>{{ player.name }}</strong>
+                    <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
+                    <span style="color: #666;">{{ player.team }}</span>
+
+                    <div style="font-size: 11px; color: #666;">
+                        {% if player.now_cost %}£{{ "%.1f"|format(player.now_cost) }}m | {% endif %}
+                        Pts: {{ player.total_points or 0 }} |
+                        PPG: {{ "%.1f"|format(player.points_per_game) if player.points_per_game else 'N/A' }}
+                        {% if player.minutes %}| Min: {{ player.minutes }}{% endif %}
+                        {% if player.goals_scored or player.assists %}
+                            | G: {{ player.goals_scored or 0 }} A: {{ player.assists or 0 }}
+                        {% endif %}
                     </div>
-                    
-                    <form method="POST" action="{{ url_for('add_to_wishlist', team_id=team.id, player_id=player.id) }}" style="display: inline;">
-                        <button type="submit" class="btn" style="padding: 5px 10px; font-size: 12px;">Add</button>
-                    </form>
                 </div>
+
+                <form method="POST" action="{{ url_for('add_to_wishlist', team_id=team.id, player_id=player.id) }}" style="display: inline;">
+                    <button type="submit" class="btn" style="padding: 5px 10px; font-size: 12px;">+</button>
+                </form>
             </div>
             {% endfor %}
         </div>
@@ -83,57 +152,65 @@
 </div>
 
 <script>
-// Simple search functionality
+// Enhanced search functionality
 document.getElementById('playerSearch').addEventListener('input', function(e) {
     const searchTerm = e.target.value.toLowerCase();
     const players = document.querySelectorAll('.player-option');
-    
+
     players.forEach(player => {
-        const text = player.textContent.toLowerCase();
-        player.style.display = text.includes(searchTerm) ? 'block' : 'none';
+        const name = player.dataset.name;
+        const team = player.dataset.team;
+        const match = name.includes(searchTerm) || team.includes(searchTerm);
+        player.style.display = match ? 'flex' : 'none';
     });
 });
 
-// Drag and drop functionality
+// Drag and drop functionality (same as before)
 let draggedElement = null;
 
 document.querySelectorAll('.wishlist-item').forEach(item => {
     item.draggable = true;
-    
+
     item.addEventListener('dragstart', function(e) {
         draggedElement = this;
         this.style.opacity = '0.5';
     });
-    
+
     item.addEventListener('dragend', function(e) {
         this.style.opacity = '';
     });
-    
+
     item.addEventListener('dragover', function(e) {
         e.preventDefault();
         this.style.borderTop = '3px solid #38003c';
     });
-    
+
     item.addEventListener('dragleave', function(e) {
         this.style.borderTop = '';
     });
-    
+
     item.addEventListener('drop', function(e) {
         e.preventDefault();
         this.style.borderTop = '';
-        
+
         if (this !== draggedElement) {
             const wishlist = document.getElementById('wishlist');
             wishlist.insertBefore(draggedElement, this);
-            
+
             // Update order in database
             const items = document.querySelectorAll('.wishlist-item');
             const newOrder = Array.from(items).map(item => parseInt(item.dataset.playerId));
-            
+
             fetch(`/team/{{ team.id }}/wishlist/reorder`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({order: newOrder})
+            });
+
+            // Update rank numbers
+            items.forEach((item, index) => {
+                const rankElement = item.querySelector('strong');
+                rankElement.textContent = rankElement.textContent.replace(/^#\d+\./, `#${index + 1}.`);
             });
         }
     });
