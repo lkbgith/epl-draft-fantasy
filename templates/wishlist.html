@@ -3,15 +3,25 @@
 <h2>{{ team.name }}'s Wishlist</h2>
 <p>Owner: {{ team.owner }}</p>
 
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-    <!-- Wishlist Column -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+    <!-- Left Column: Wishlist -->
     <div>
         <h3>My Wishlist (Drag to Reorder)</h3>
-        
-        <div id="wishlist" style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; min-height: 200px;">
+
+        <!-- Scrollable wishlist -->
+        <div id="wishlist" style="
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border: 1px solid #ddd;
+        ">
             {% if wishlist %}
                 {% for item in wishlist %}
-                <div class="wishlist-item" data-player-id="{{ item.player.id }}" 
+                <div class="wishlist-item" data-player-id="{{ item.player.id }}"
                      style="background: white; padding: 10px; margin: 5px 0; border-radius: 4px; cursor: move; border: 1px solid #ddd;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="flex: 1;">
@@ -40,32 +50,36 @@
                 </div>
                 {% endfor %}
             {% else %}
-                <p style="color: #666; text-align: center;">No players in wishlist yet</p>
+                <p style="color: #666; text-align: center; padding: 50px 0;">No players in wishlist yet</p>
             {% endif %}
         </div>
 
-        <div style="margin-top: 10px; font-size: 12px; color: #666;">
-            💡 Tip: Drag players to reorder your wishlist. #1 is your top priority.
-        </div>
-
-        <!-- Wishlist position summary -->
-        <div style="margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 4px;">
-            <h4 style="margin: 0 0 10px 0;">Wishlist Summary</h4>
-            <div style="font-size: 12px;">
+        <!-- Wishlist summary -->
+        <div style="margin-top: 10px; padding: 8px; background-color: #f0f0f0; border-radius: 4px; font-size: 12px;">
+            <div>
                 {% set pos_counts = {} %}
                 {% for item in wishlist if not item.player.drafted %}
                     {% set _ = pos_counts.update({item.player.position: pos_counts.get(item.player.position, 0) + 1}) %}
                 {% endfor %}
 
+                <strong>Position Summary:</strong>
                 {% for pos in ['GK', 'DEF', 'MID', 'FWD'] %}
-                    <span class="position-badge position-{{ pos }}">{{ pos }}</span>: {{ pos_counts.get(pos, 0) }}
-                    {% if not loop.last %} | {% endif %}
+                    <span class="position-badge position-{{ pos }}" style="font-size: 11px;">{{ pos }}: {{ pos_counts.get(pos, 0) }}</span>
                 {% endfor %}
             </div>
+            <div style="margin-top: 5px;">
+                <strong>Total:</strong> {{ wishlist|length }} players
+                {% if wishlist|length > 0 %} | <strong>Top pick:</strong> {{ wishlist[0].player.name }}{% endif %}
+            </div>
+        </div>
+
+        <!-- Compact tips -->
+        <div style="margin-top: 10px; font-size: 11px; color: #666;">
+            💡 Drag to reorder | Scroll to see all | #1 = highest priority
         </div>
     </div>
 
-    <!-- Available Players Column -->
+    <!-- Right Column: Add Players -->
     <div>
         <h3>Add Players to Wishlist</h3>
 
@@ -113,7 +127,7 @@
         </div>
 
         <!-- Player List -->
-        <div style="height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
+        <div style="height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
             <div style="font-size: 11px; color: #666; margin-bottom: 5px;">
                 Showing {{ available_players|length }} players
             </div>
@@ -151,72 +165,7 @@
     <a href="{{ url_for('draft') }}" class="btn">Back to Draft</a>
 </div>
 
-<script>
-// Enhanced search functionality
-document.getElementById('playerSearch').addEventListener('input', function(e) {
-    const searchTerm = e.target.value.toLowerCase();
-    const players = document.querySelectorAll('.player-option');
-
-    players.forEach(player => {
-        const name = player.dataset.name;
-        const team = player.dataset.team;
-        const match = name.includes(searchTerm) || team.includes(searchTerm);
-        player.style.display = match ? 'flex' : 'none';
-    });
-});
-
-// Drag and drop functionality (same as before)
-let draggedElement = null;
-
-document.querySelectorAll('.wishlist-item').forEach(item => {
-    item.draggable = true;
-
-    item.addEventListener('dragstart', function(e) {
-        draggedElement = this;
-        this.style.opacity = '0.5';
-    });
-
-    item.addEventListener('dragend', function(e) {
-        this.style.opacity = '';
-    });
-
-    item.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        this.style.borderTop = '3px solid #38003c';
-    });
-
-    item.addEventListener('dragleave', function(e) {
-        this.style.borderTop = '';
-    });
-
-    item.addEventListener('drop', function(e) {
-        e.preventDefault();
-        this.style.borderTop = '';
-
-        if (this !== draggedElement) {
-            const wishlist = document.getElementById('wishlist');
-            wishlist.insertBefore(draggedElement, this);
-
-            // Update order in database
-            const items = document.querySelectorAll('.wishlist-item');
-            const newOrder = Array.from(items).map(item => parseInt(item.dataset.playerId));
-
-            fetch(`/team/{{ team.id }}/wishlist/reorder`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({order: newOrder})
-            });
-
-            // Update rank numbers
-            items.forEach((item, index) => {
-                const rankElement = item.querySelector('strong');
-                rankElement.textContent = rankElement.textContent.replace(/^#\d+\./, `#${index + 1}.`);
-            });
-        }
-    });
-});
-</script>
-
+<!-- WebSocket for real-time updates -->
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script>
     // Connect to WebSocket
@@ -255,9 +204,6 @@ document.querySelectorAll('.wishlist-item').forEach(item => {
                     'error',
                     5000  // Show for longer
                 );
-
-                // Play sound for top 5 picks (optional)
-                // new Audio('/static/alert.mp3').play();
             }
         }
     });
@@ -309,6 +255,70 @@ document.querySelectorAll('.wishlist-item').forEach(item => {
     `;
     document.head.appendChild(style);
 
+    // Enhanced search functionality
+    document.getElementById('playerSearch').addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const players = document.querySelectorAll('.player-option');
+
+        players.forEach(player => {
+            const name = player.dataset.name;
+            const team = player.dataset.team;
+            const match = name.includes(searchTerm) || team.includes(searchTerm);
+            player.style.display = match ? 'flex' : 'none';
+        });
+    });
+
+    // Drag and drop functionality
+    let draggedElement = null;
+
+    document.querySelectorAll('.wishlist-item').forEach(item => {
+        item.draggable = true;
+
+        item.addEventListener('dragstart', function(e) {
+            draggedElement = this;
+            this.style.opacity = '0.5';
+        });
+
+        item.addEventListener('dragend', function(e) {
+            this.style.opacity = '';
+        });
+
+        item.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.style.borderTop = '3px solid #38003c';
+        });
+
+        item.addEventListener('dragleave', function(e) {
+            this.style.borderTop = '';
+        });
+
+        item.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.style.borderTop = '';
+
+            if (this !== draggedElement) {
+                const wishlist = document.getElementById('wishlist');
+                wishlist.insertBefore(draggedElement, this);
+
+                // Update order in database
+                const items = document.querySelectorAll('.wishlist-item');
+                const newOrder = Array.from(items).map(item => parseInt(item.dataset.playerId));
+
+                fetch(`/team/{{ team.id }}/wishlist/reorder`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({order: newOrder})
+                });
+
+                // Update rank numbers
+                items.forEach((item, index) => {
+                    const rankElement = item.querySelector('strong');
+                    rankElement.textContent = rankElement.textContent.replace(/^#\d+\./, `#${index + 1}.`);
+                });
+            }
+        });
+    });
+
     // Update the visual state of drafted players on page load
     document.addEventListener('DOMContentLoaded', function() {
         const draftedPlayers = document.querySelectorAll('.wishlist-item');
@@ -320,5 +330,4 @@ document.querySelectorAll('.wishlist-item').forEach(item => {
         });
     });
 </script>
-
 {% endblock %}
