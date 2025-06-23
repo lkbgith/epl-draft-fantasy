@@ -132,6 +132,34 @@ class DraftTeam(db.Model):
             roster[player.position].append(player)
         return roster
 
+    def get_team_counts(self):
+        """Count how many players from each EPL team"""
+        team_counts = {}
+        for player in self.players:
+            team_counts[player.team] = team_counts.get(player.team, 0) + 1
+        return team_counts
+
+    def can_draft_player(self, player):
+        """Check if this player can be drafted based on constraints"""
+        # Check team limit (max 3 from same team)
+        team_counts = self.get_team_counts()
+        if team_counts.get(player.team, 0) >= 3:
+            return False, f"Already have 3 players from {player.team}"
+
+        # Check position limits
+        roster = self.get_roster()
+        position_limits = {
+            'GK': 2,
+            'DEF': 5,
+            'MID': 5,
+            'FWD': 3
+        }
+
+        if len(roster[player.position]) >= position_limits[player.position]:
+            return False, f"Already have {position_limits[player.position]} {player.position}s"
+
+        return True, "OK"
+
 
 class Draft(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -320,6 +348,14 @@ def draft_player(player_id):
     current_team_id = draft.get_current_team_id()
     current_team = DraftTeam.query.get(current_team_id)
 
+    # CHECK DRAFT CONSTRAINTS
+    can_draft, reason = current_team.can_draft_player(player)
+    if not can_draft:
+        # Flash message and redirect back
+        from flask import flash
+        flash(f"Cannot draft {player.name}: {reason}", 'error')
+        return redirect(url_for('draft'))
+
     # Draft the player
     player.drafted = True
     player.drafted_by = current_team.id
@@ -328,7 +364,7 @@ def draft_player(player_id):
     wishlist_entries = Wishlist.query.filter_by(player_id=player_id).all()
     affected_teams = []
     for entry in wishlist_entries:
-        if entry.team_id != current_team_id:  # Don't notify the team that drafted the player
+        if entry.team_id != current_team_id:
             affected_teams.append({
                 'team_id': entry.team_id,
                 'team_name': entry.team.name,
@@ -340,7 +376,7 @@ def draft_player(player_id):
 
     db.session.commit()
 
-    # Emit general draft update
+    # Emit updates
     socketio.emit('player_drafted', {
         'player_name': player.name,
         'player_id': player.id,
@@ -348,7 +384,6 @@ def draft_player(player_id):
         'next_team_id': draft.get_current_team_id()
     })
 
-    # Emit wishlist notifications
     if affected_teams:
         socketio.emit('wishlist_player_drafted', {
             'player_name': player.name,

@@ -13,6 +13,67 @@
     {% endif %}
 </div>
 
+<!-- Flash Messages for Errors -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div style="background-color: #ffebee; color: #d32f2f; padding: 15px; margin: 10px 0; border-radius: 4px; border: 1px solid #f44336;">
+                <strong>⚠️ {{ message }}</strong>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<!-- Draft Constraints Display -->
+<div style="background-color: #e8f5e9; padding: 15px; margin: 15px 0; border-radius: 4px;">
+    <h4 style="margin: 0 0 10px 0;">📋 Draft Rules</h4>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 14px;">
+        <div>
+            <strong>Squad Requirements:</strong>
+            <ul style="margin: 5px 0;">
+                <li>2 Goalkeepers (GK)</li>
+                <li>5 Defenders (DEF)</li>
+                <li>5 Midfielders (MID)</li>
+                <li>3 Forwards (FWD)</li>
+            </ul>
+        </div>
+        <div>
+            <strong>Team Limit:</strong>
+            <ul style="margin: 5px 0;">
+                <li>Maximum 3 players from any single team</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Current Team's Progress -->
+<div style="background-color: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 4px;">
+    <h4 style="margin: 0 0 10px 0;">{{ current_team.name }}'s Progress</h4>
+
+    <!-- Position counts -->
+    <div style="margin-bottom: 10px;">
+        {% set roster = current_team.get_roster() %}
+        <span class="position-badge position-GK">GK: {{ roster['GK']|length }}/2</span>
+        <span class="position-badge position-DEF" style="margin-left: 10px;">DEF: {{ roster['DEF']|length }}/5</span>
+        <span class="position-badge position-MID" style="margin-left: 10px;">MID: {{ roster['MID']|length }}/5</span>
+        <span class="position-badge position-FWD" style="margin-left: 10px;">FWD: {{ roster['FWD']|length }}/3</span>
+    </div>
+
+    <!-- Team counts (only show teams with 2+ players) -->
+    {% set team_counts = current_team.get_team_counts() %}
+    {% if team_counts %}
+        <div style="font-size: 12px; color: #666;">
+            <strong>Players per team:</strong>
+            {% for team, count in team_counts.items() if count >= 2 %}
+                <span style="{% if count >= 3 %}color: #d32f2f; font-weight: bold;{% endif %}">
+                    {{ team }}: {{ count }}/3
+                </span>
+                {% if not loop.last %} | {% endif %}
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+
 <div style="display: flex; gap: 20px;">
     <div style="flex: 2;">
         <h3>Available Players</h3>
