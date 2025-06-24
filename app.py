@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
-from flask_socketio import SocketIO, emit
+# from flask_socketio import SocketIO, emit
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import json
@@ -22,7 +22,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)  # <-- Use exist_ok=True
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app)
+# socketio = SocketIO(app)
 
 
 # Database Models
@@ -379,20 +379,20 @@ def draft_player(player_id):
     db.session.commit()
 
     # Emit updates
-    socketio.emit('player_drafted', {
-        'player_name': player.name,
-        'player_id': player.id,
-        'team_name': current_team.name,
-        'next_team_id': draft.get_current_team_id()
-    })
+    #socketio.emit('player_drafted', {
+    #    'player_name': player.name,
+    #    'player_id': player.id,
+    #    'team_name': current_team.name,
+    #    'next_team_id': draft.get_current_team_id()
+    #})
 
-    if affected_teams:
-        socketio.emit('wishlist_player_drafted', {
-            'player_name': player.name,
-            'player_id': player.id,
-            'drafted_by': current_team.name,
-            'affected_teams': affected_teams
-        })
+    #if affected_teams:
+    #    socketio.emit('wishlist_player_drafted', {
+    #        'player_name': player.name,
+    #        'player_id': player.id,
+    #        'drafted_by': current_team.name,
+    #        'affected_teams': affected_teams
+    #    })
 
     return redirect(url_for('draft'))
 
@@ -893,10 +893,4 @@ base_html = '''
 '''
 
 if __name__ == '__main__':
-    # Check if running on Render/production
-    port = int(os.environ.get('PORT', 5000))
-    if os.environ.get('RENDER'):
-        socketio.run(app, host='0.0.0.0', port=port)
-    else:
-        # Local development
-        socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
