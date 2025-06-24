@@ -24,6 +24,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)  # <-- Use exist_ok=True
 db = SQLAlchemy(app)
 socketio = SocketIO(app)
 
+
 # Database Models
 class Player(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -892,4 +893,10 @@ base_html = '''
 '''
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
+    # Check if running on Render/production
+    port = int(os.environ.get('PORT', 5000))
+    if os.environ.get('RENDER'):
+        socketio.run(app, host='0.0.0.0', port=port)
+    else:
+        # Local development
+        socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
