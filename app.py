@@ -562,8 +562,10 @@ def import_excel():
     return render_template('import_excel.html', current_players=current_players)
 
 
+# Update your import_fpl_excel function in app.py
+
 def import_fpl_excel(filepath):
-    """Import FPL data from Excel file"""
+    """Import FPL data from Excel file - handles both old and new formats"""
     imported = 0
     updated = 0
     errors = []
@@ -571,9 +573,6 @@ def import_fpl_excel(filepath):
     try:
         # Read the Excel file
         df = pd.read_excel(filepath, sheet_name='Player Data')
-
-        print("Excel columns found:", df.columns.tolist())
-        print("First row sample:", df.iloc[0].to_dict() if len(df) > 0 else "No data")
 
         # Map FPL positions to our positions
         position_map = {
@@ -598,16 +597,30 @@ def import_fpl_excel(filepath):
                     errors.append(f"Row {idx + 2}: Unknown position '{pos}'")
                     continue
 
-                # Create web_name (usually last name or known name)
-                web_name = row.get('second_name', '').strip()
-                if row.get('first_name'):
-                    # For some players, use first name (e.g., "Mohamed Salah" -> "Salah")
-                    # You might want to customize this logic
-                    pass
+                # Handle name fields - new format has full_name, old format has first_name/second_name
+                if 'full_name' in row and pd.notna(row['full_name']):
+                    # New format - split full_name
+                    full_name = str(row['full_name']).strip()
+                    name_parts = full_name.split()
+
+                    if len(name_parts) >= 2:
+                        first_name = ' '.join(name_parts[:-1])  # Everything except last word
+                        second_name = name_parts[-1]  # Last word
+                    else:
+                        first_name = ''
+                        second_name = full_name
+
+                    web_name = second_name  # Use last name as display name
+                else:
+                    # Old format
+                    first_name = str(row.get('first_name', '')).strip()
+                    second_name = str(row.get('second_name', '')).strip()
+                    full_name = f"{first_name} {second_name}".strip()
+                    web_name = second_name
 
                 # Check if player exists
                 existing = Player.query.filter_by(
-                    second_name=row.get('second_name', '').strip(),
+                    second_name=second_name,
                     team=row.get('team', '').strip()
                 ).first()
 
@@ -619,23 +632,32 @@ def import_fpl_excel(filepath):
                                   'threat', 'ict_index', 'expected_goals', 'expected_assists',
                                   'expected_goal_involvements', 'expected_goals_conceded',
                                   'expected_goals_per_90', 'expected_assists_per_90',
-                                  'saves_per_90', 'clean_sheets_per_90', 'now_cost', 'starts']:
+                                  'saves_per_90', 'clean_sheets_per_90', 'starts']:
                         if field in row and pd.notna(row[field]):
                             setattr(existing, field, row[field])
 
+                    # Update price field (might be 'now_cost' or 'price')
+                    if 'price' in row and pd.notna(row['price']):
+                        existing.now_cost = float(row['price'])
+                    elif 'now_cost' in row and pd.notna(row['now_cost']):
+                        existing.now_cost = float(row['now_cost'])
+
                     existing.position = position
-                    existing.status = row.get('status', 'a')
+                    existing.status = row.get('status', 'Available')
+                    existing.full_name = full_name
+                    existing.first_name = first_name
+                    existing.web_name = web_name
                     updated += 1
                 else:
                     # Create new player
                     player = Player(
-                        first_name=row.get('first_name', '').strip(),
-                        second_name=row.get('second_name', '').strip(),
-                        full_name=row.get('full_name', '').strip(),
+                        first_name=first_name,
+                        second_name=second_name,
+                        full_name=full_name,
                         web_name=web_name,
                         team=row.get('team', '').strip(),
                         position=position,
-                        status=row.get('status', 'a'),
+                        status=row.get('status', 'Available'),
                         drafted=False
                     )
 
@@ -643,13 +665,23 @@ def import_fpl_excel(filepath):
                     for field in ['total_points', 'points_per_game', 'minutes', 'goals_scored',
                                   'assists', 'clean_sheets', 'goals_conceded', 'own_goals',
                                   'penalties_saved', 'penalties_missed', 'yellow_cards',
-                                  'red_cards', 'saves', 'bonus', 'bps', 'influence', 'creativity',
-                                  'threat', 'ict_index', 'expected_goals', 'expected_assists',
-                                  'expected_goal_involvements', 'expected_goals_conceded',
-                                  'expected_goals_per_90', 'expected_assists_per_90',
-                                  'saves_per_90', 'clean_sheets_per_90', 'now_cost', 'starts']:
+                                  'red_cards', 'saves', 'bonus', 'influence', 'creativity',
+                                  'threat', 'ict_index', 'starts']:
                         if field in row and pd.notna(row[field]):
                             setattr(player, field, row[field])
+
+                    # Handle price field
+                    if 'price' in row and pd.notna(row['price']):
+                        player.now_cost = float(row['price'])
+                    elif 'now_cost' in row and pd.notna(row['now_cost']):
+                        player.now_cost = float(row['now_cost'])
+
+                    # Handle BPS field if it exists
+                    if 'bps' in row and pd.notna(row['bps']):
+                        player.bps = int(row['bps'])
+                    elif 'bonus' in row and pd.notna(row['bonus']):
+                        # If no bps but has bonus, estimate bps
+                        player.bps = int(row['bonus']) * 3
 
                     db.session.add(player)
                     imported += 1
