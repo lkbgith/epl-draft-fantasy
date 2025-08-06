@@ -9,6 +9,18 @@ import pandas as pd
 import numpy as np
 import openpyxl
 
+if 'DATABASE_URL' in os.environ:
+    # Fix for SQLAlchemy
+    database_url = os.environ['DATABASE_URL']
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://')
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    # Local development
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'fantasy_draft.db')
+
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 basedir = os.path.abspath(os.path.dirname(__file__))
