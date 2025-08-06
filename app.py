@@ -874,6 +874,15 @@ def reset_database():
     """Reset database - requires confirmation"""
     confirm = request.args.get('confirm', 'no')
 
+@app.route('/init_db_secret_route')
+def init_database():
+    """Initialize database - run this once after deployment"""
+    try:
+        db.create_all()
+        return "Database initialized successfully! You can now delete this route for security."
+    except Exception as e:
+        return f"Error initializing database: {str(e)}"
+
     if confirm != 'yes':
         return """
         <h2>⚠️ Database Reset Confirmation</h2>
