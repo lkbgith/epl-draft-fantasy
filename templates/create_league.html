@@ -1,0 +1,40 @@
+<!-- templates/create_league.html -->
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width: 500px; margin: 0 auto; padding: 40px 20px;">
+    <h2>Create New League</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div style="background-color: #ffebee; color: #d32f2f; padding: 15px; margin: 10px 0; border-radius: 4px;">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" style="background-color: #f5f5f5; padding: 30px; border-radius: 10px;">
+        <div style="margin-bottom: 20px;">
+            <label for="league_name" style="display: block; margin-bottom: 10px; font-weight: bold;">
+                League Name
+            </label>
+            <input type="text"
+                   id="league_name"
+                   name="league_name"
+                   required
+                   placeholder="e.g., London Champions League"
+                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;">
+            <small style="color: #666;">Choose a unique name for your draft league</small>
+        </div>
+
+        <button type="submit" class="btn" style="width: 100%; padding: 15px; font-size: 16px;">
+            Create League
+        </button>
+    </form>
+
+    <div style="margin-top: 30px; text-align: center;">
+        <a href="{{ url_for('index') }}" style="color: #666;">← Back to Home</a>
+    </div>
+</div>
+{% endblock %}

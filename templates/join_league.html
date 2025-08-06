@@ -1,0 +1,53 @@
+<!-- templates/join_league.html -->
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width: 500px; margin: 0 auto; padding: 40px 20px;">
+    <h2>Join a League</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div style="background-color: #ffebee; color: #d32f2f; padding: 15px; margin: 10px 0; border-radius: 4px;">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" style="background-color: #f5f5f5; padding: 30px; border-radius: 10px;">
+        <div style="margin-bottom: 20px;">
+            <label for="access_code" style="display: block; margin-bottom: 10px; font-weight: bold;">
+                League Access Code
+            </label>
+            <input type="text"
+                   id="access_code"
+                   name="access_code"
+                   required
+                   placeholder="e.g., ABC123"
+                   maxlength="6"
+                   style="width: 100%; padding: 15px; border: 2px solid #ddd; border-radius: 4px; font-size: 24px; text-align: center; text-transform: uppercase; letter-spacing: 3px; font-family: monospace;">
+            <small style="color: #666;">Enter the 6-character code from your league commissioner</small>
+        </div>
+
+        <button type="submit" class="btn" style="width: 100%; padding: 15px; font-size: 16px;">
+            Join League
+        </button>
+    </form>
+
+    <div style="margin-top: 30px; text-align: center;">
+        <p>Don't have a code?</p>
+        <a href="{{ url_for('create_league') }}" class="btn" style="background-color: #666;">Create Your Own League</a>
+    </div>
+
+    <div style="margin-top: 20px; text-align: center;">
+        <a href="{{ url_for('index') }}" style="color: #666;">← Back to Home</a>
+    </div>
+</div>
+
+<script>
+// Auto-uppercase the input
+document.getElementById('access_code').addEventListener('input', function(e) {
+    e.target.value = e.target.value.toUpperCase();
+});
+</script>
+{% endblock %}

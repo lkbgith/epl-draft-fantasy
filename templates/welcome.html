@@ -1,0 +1,37 @@
+<!-- templates/welcome.html -->
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto; text-align: center; padding: 50px 20px;">
+    <h1 style="color: #38003c; margin-bottom: 30px;">Welcome to EPL Fantasy Draft</h1>
+
+    <div style="background-color: #f5f5f5; padding: 40px; border-radius: 10px; margin-bottom: 30px;">
+        <h2>Start Your Draft</h2>
+        <p style="margin-bottom: 30px;">Create a new league or join an existing one</p>
+
+        <div style="display: grid; gap: 20px; max-width: 400px; margin: 0 auto;">
+            <a href="{{ url_for('create_league') }}" class="btn" style="padding: 20px; font-size: 18px; display: block;">
+                🏆 Create New League
+            </a>
+
+            <a href="{{ url_for('join_league') }}" class="btn" style="padding: 20px; font-size: 18px; display: block;">
+                🎯 Join Existing League
+            </a>
+
+            <a href="{{ url_for('list_leagues') }}" class="btn" style="padding: 20px; font-size: 18px; display: block; background-color: #666;">
+                📋 View All Leagues
+            </a>
+        </div>
+    </div>
+
+    <div style="margin-top: 40px; padding: 20px; background-color: #e3f2fd; border-radius: 10px;">
+        <h3>How It Works</h3>
+        <ol style="text-align: left; max-width: 400px; margin: 20px auto;">
+            <li>Create a league with a unique name</li>
+            <li>Add teams and managers</li>
+            <li>Share the access code with managers</li>
+            <li>Managers build wishlists before draft night</li>
+            <li>Run your snake draft on draft night!</li>
+        </ol>
+    </div>
+</div>
+{% endblock %}

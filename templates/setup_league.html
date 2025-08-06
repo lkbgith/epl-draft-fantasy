@@ -1,0 +1,47 @@
+<!-- templates/setup_league.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>Setup Teams for {{ league.name }}</h2>
+
+<div style="background-color: #e8f5e9; padding: 20px; border-radius: 10px; margin-bottom: 30px;">
+    <h3>League Access Code: <span style="font-family: monospace; font-size: 24px; letter-spacing: 2px;">{{ league.access_code }}</span></h3>
+    <p>Share this code with team managers so they can access their teams</p>
+</div>
+
+<form method="POST">
+    <div id="teams-container">
+        <h3>Add Teams to {{ league.name }}</h3>
+        <div class="team-input" style="margin: 10px 0;">
+            <input type="text" name="team_names[]" placeholder="Team Name" required style="margin-right: 10px; padding: 8px;">
+            <input type="text" name="team_owners[]" placeholder="Manager Name" required style="padding: 8px;">
+        </div>
+    </div>
+
+    <button type="button" onclick="addTeam()" class="btn" style="margin: 10px 0;">Add Another Team</button>
+    <button type="submit" class="btn" style="background-color: #4CAF50;">Start Draft</button>
+</form>
+
+<div style="margin-top: 30px; padding: 20px; background-color: #f5f5f5; border-radius: 10px;">
+    <h4>Draft Format</h4>
+    <ul>
+        <li>Snake draft format (order reverses each round)</li>
+        <li>15 players per team (2 GK, 5 DEF, 5 MID, 3 FWD)</li>
+        <li>Maximum 3 players from any Premier League team</li>
+    </ul>
+</div>
+
+<script>
+function addTeam() {
+    const container = document.getElementById('teams-container');
+    const newTeam = document.createElement('div');
+    newTeam.className = 'team-input';
+    newTeam.style.margin = '10px 0';
+    newTeam.innerHTML = `
+        <input type="text" name="team_names[]" placeholder="Team Name" required style="margin-right: 10px; padding: 8px;">
+        <input type="text" name="team_owners[]" placeholder="Manager Name" required style="padding: 8px;">
+        <button type="button" onclick="this.parentElement.remove()" style="margin-left: 10px; padding: 8px; background-color: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer;">Remove</button>
+    `;
+    container.appendChild(newTeam);
+}
+</script>
+{% endblock %}

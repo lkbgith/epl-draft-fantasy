@@ -138,6 +138,7 @@ class DraftTeam(db.Model):
     name = db.Column(db.String(100), nullable=False)
     owner = db.Column(db.String(100), nullable=False)
     access_token = db.Column(db.String(32), unique=True)
+    league_id = db.Column(db.Integer, db.ForeignKey('league.id'), nullable=True)  # ADD THIS LINE
     players = db.relationship('Player', backref='draft_team', lazy=True)
 
     def generate_access_token(self):
@@ -191,9 +192,10 @@ class Draft(db.Model):
     current_team_index = db.Column(db.Integer, default=0)
     total_teams = db.Column(db.Integer)
     is_active = db.Column(db.Boolean, default=True)
-    draft_order = db.Column(db.Text)  # JSON string of team IDs
+    draft_order = db.Column(db.Text)
     is_snake_draft = db.Column(db.Boolean, default=True)
-    is_locked = db.Column(db.Boolean, default=False)  # For pre-draft lock
+    is_locked = db.Column(db.Boolean, default=False)
+    league_id = db.Column(db.Integer, db.ForeignKey('league.id'), nullable=True)  # ADD THIS LINE
 
     @property
     def current_round(self):
@@ -232,10 +234,11 @@ class Wishlist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey('draft_team.id'), nullable=False)
     player_id = db.Column(db.Integer, db.ForeignKey('player.id'), nullable=False)
-    rank = db.Column(db.Integer, nullable=False)  # 1 = highest priority
-    position_filter = db.Column(db.String(20))  # Optional: filter by position
-    notes = db.Column(db.String(200))  # Optional notes
+    rank = db.Column(db.Integer, nullable=False)
+    position_filter = db.Column(db.String(20))
+    notes = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    league_id = db.Column(db.Integer, db.ForeignKey('league.id'), nullable=True)
 
     # Relationships
     team = db.relationship('DraftTeam', backref='wishlist_items')
@@ -245,18 +248,30 @@ class Wishlist(db.Model):
     __table_args__ = (db.UniqueConstraint('team_id', 'player_id'),)
 
 
+class League(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    access_code = db.Column(db.String(10), unique=True)  # Simple code for sharing
+
+    # Relationships
+    teams = db.relationship('DraftTeam', backref='league', lazy=True)
+    draft = db.relationship('Draft', backref='league', uselist=False)  # One draft per league
+
+    def generate_access_code(self):
+        """Generate a simple 6-character access code"""
+        import random
+        import string
+        self.access_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        return self.access_code
+
+
 # Helper function
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 # Routes
-@app.route('/')
-def index():
-    teams = DraftTeam.query.all()
-    draft = Draft.query.first()
-    return render_template('index.html', teams=teams, draft=draft)
-
 
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
@@ -366,6 +381,198 @@ def draft():
                            display_teams=display_teams,
                            current_round=draft.current_round,
                            is_reverse_round=draft.is_reverse_round)
+
+
+@app.route('/create_league', methods=['GET', 'POST'])
+def create_league():
+    """Create a new league"""
+    if request.method == 'POST':
+        league_name = request.form.get('league_name')
+
+        # Check if league name already exists
+        existing = League.query.filter_by(name=league_name).first()
+        if existing:
+            flash('A league with this name already exists. Please choose another name.', 'error')
+            return render_template('create_league.html')
+
+        # Create new league
+        league = League(name=league_name)
+        league.generate_access_code()
+        db.session.add(league)
+        db.session.commit()
+
+        # Store league ID in session
+        session['current_league_id'] = league.id
+        session['is_league_admin'] = True
+
+        return redirect(url_for('setup_league', league_id=league.id))
+
+    return render_template('create_league.html')
+
+
+@app.route('/league/<int:league_id>/setup', methods=['GET', 'POST'])
+def setup_league(league_id):
+    """Setup teams for a specific league"""
+    league = League.query.get_or_404(league_id)
+
+    if request.method == 'POST':
+        # Clear only teams and draft data for THIS league
+        DraftTeam.query.filter_by(league_id=league_id).delete()
+        Draft.query.filter_by(league_id=league_id).delete()
+
+        # Reset players to undrafted only for this league's teams
+        for team in league.teams:
+            for player in team.players:
+                player.drafted = False
+                player.drafted_by = None
+
+        db.session.commit()
+
+        # Create teams
+        team_names = request.form.getlist('team_names[]')
+        team_owners = request.form.getlist('team_owners[]')
+
+        teams = []
+        for name, owner in zip(team_names, team_owners):
+            if name and owner:
+                team = DraftTeam(name=name, owner=owner, league_id=league_id)
+                team.generate_access_token()
+                db.session.add(team)
+                teams.append(team)
+
+        db.session.commit()
+
+        # Create draft for this league
+        draft_order = [team.id for team in teams]
+        draft = Draft(
+            total_teams=len(teams),
+            draft_order=json.dumps(draft_order),
+            league_id=league_id
+        )
+        db.session.add(draft)
+        db.session.commit()
+
+        return redirect(url_for('league_draft', league_id=league_id))
+
+    return render_template('setup_league.html', league=league)
+
+
+@app.route('/league/<int:league_id>/draft')
+def league_draft(league_id):
+    """Draft page for a specific league"""
+    league = League.query.get_or_404(league_id)
+    draft = Draft.query.filter_by(league_id=league_id).first()
+
+    if not draft:
+        return redirect(url_for('setup_league', league_id=league_id))
+
+    # Store current league in session
+    session['current_league_id'] = league_id
+
+    # Get teams for this league only
+    teams = DraftTeam.query.filter_by(league_id=league_id).all()
+
+    # Get sorting preference from URL parameters
+    sort_by = request.args.get('sort', 'total_points')
+    position_filter = request.args.get('position', 'all')
+
+    # Build query for available players
+    query = Player.query.filter_by(drafted=False)
+
+    # Apply position filter
+    if position_filter != 'all':
+        query = query.filter_by(position=position_filter)
+
+    # Apply sorting
+    from sqlalchemy import desc, nullslast
+
+    if sort_by == 'name':
+        query = query.order_by(Player.second_name)
+    elif sort_by == 'total_points':
+        query = query.order_by(nullslast(desc(Player.total_points)))
+    elif sort_by == 'points_per_game':
+        query = query.order_by(nullslast(desc(Player.points_per_game)))
+    elif sort_by == 'now_cost':
+        query = query.order_by(nullslast(desc(Player.now_cost)))
+    elif sort_by == 'goals_scored':
+        query = query.order_by(nullslast(desc(Player.goals_scored)))
+    elif sort_by == 'assists':
+        query = query.order_by(nullslast(desc(Player.assists)))
+    elif sort_by == 'minutes':
+        query = query.order_by(nullslast(desc(Player.minutes)))
+    else:
+        query = query.order_by(nullslast(desc(Player.total_points)))
+
+    available_players = query.all()
+
+    # Get current team using snake draft logic
+    current_team_id = draft.get_current_team_id()
+    current_team = DraftTeam.query.get(current_team_id)
+
+    # Create draft order display
+    draft_order_ids = json.loads(draft.draft_order)
+    if draft.is_reverse_round:
+        display_order = list(reversed(draft_order_ids))
+    else:
+        display_order = draft_order_ids
+
+    # Get team objects in display order
+    display_teams = [DraftTeam.query.get(team_id) for team_id in display_order]
+
+    return render_template('league_draft.html',
+                           league=league,
+                           draft=draft,
+                           teams=teams,
+                           available_players=available_players,
+                           current_team=current_team,
+                           current_sort=sort_by,
+                           current_position=position_filter,
+                           display_teams=display_teams,
+                           current_round=draft.current_round,
+                           is_reverse_round=draft.is_reverse_round)
+
+
+@app.route('/leagues')
+def list_leagues():
+    """List all leagues"""
+    leagues = League.query.order_by(League.created_at.desc()).all()
+    return render_template('leagues.html', leagues=leagues)
+
+
+@app.route('/join_league', methods=['GET', 'POST'])
+def join_league():
+    """Join a league using access code"""
+    if request.method == 'POST':
+        access_code = request.form.get('access_code').upper()
+        league = League.query.filter_by(access_code=access_code).first()
+
+        if league:
+            session['current_league_id'] = league.id
+            return redirect(url_for('league_draft', league_id=league.id))
+        else:
+            flash('Invalid league code', 'error')
+
+    return render_template('join_league.html')
+
+
+# Update your existing routes to be league-aware
+
+@app.route('/')
+def index():
+    # Show league selection or current league
+    current_league_id = session.get('current_league_id')
+    if current_league_id:
+        league = League.query.get(current_league_id)
+        if league:  # Check if league actually exists
+            teams = DraftTeam.query.filter_by(league_id=current_league_id).all()
+            draft = Draft.query.filter_by(league_id=current_league_id).first()
+            return render_template('league_home.html', league=league, teams=teams, draft=draft)
+        else:
+            # League doesn't exist anymore, clear session
+            session.pop('current_league_id', None)
+
+    # Show option to create or join league
+    return render_template('welcome.html')
 
 
 @app.route('/draft_player/<int:player_id>', methods=['POST'])
@@ -890,6 +1097,43 @@ def init_database():
         """
     except Exception as e:
         return f"Error initializing database: {str(e)}"
+
+
+@app.route('/migrate_for_leagues')
+def migrate_for_leagues():
+    """Add league support to existing database"""
+    if not session.get('is_admin'):
+        # First visit /setup to become admin
+        return "Please visit /setup first to gain admin access, then come back here"
+
+    try:
+        # Create new tables
+        db.create_all()
+
+        # Try to add columns (might fail if they exist)
+        try:
+            db.engine.execute('ALTER TABLE draft_team ADD COLUMN league_id INTEGER')
+        except:
+            pass
+
+        try:
+            db.engine.execute('ALTER TABLE draft ADD COLUMN league_id INTEGER')
+        except:
+            pass
+
+        try:
+            db.engine.execute('ALTER TABLE wishlist ADD COLUMN league_id INTEGER')
+        except:
+            pass
+
+        return """
+        <h2>✅ Database Updated!</h2>
+        <p>League support has been added.</p>
+        <p><a href="/">Go to Home</a></p>
+        <p style="color: red;"><strong>IMPORTANT: Remove the /migrate_for_leagues route from your code after using this!</strong></p>
+        """
+    except Exception as e:
+        return f"Partial success - some items may have already existed: {str(e)}"
 
 
 # Debug routes
