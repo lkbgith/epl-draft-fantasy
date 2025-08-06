@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
-# from flask_socketio import SocketIO, emit
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import json
@@ -8,7 +7,15 @@ import os
 import pandas as pd
 import numpy as np
 import openpyxl
+import secrets
 
+# Create Flask app FIRST
+app = Flask(__name__)
+
+# Configure app SECOND
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
+
+# Database configuration THIRD (after app exists)
 if 'DATABASE_URL' in os.environ:
     # Fix for SQLAlchemy
     database_url = os.environ['DATABASE_URL']
@@ -20,21 +27,17 @@ else:
     basedir = os.path.abspath(os.path.dirname(__file__))
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'fantasy_draft.db')
 
-
-app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'fantasy_draft.db')
+# Other configurations
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-
+ALLOWED_EXTENSIONS = {'csv', 'json', 'xlsx', 'xls'}
 
 # Create uploads folder if it doesn't exist
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)  # <-- Use exist_ok=True
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# Create database instance FOURTH
 db = SQLAlchemy(app)
-# socketio = SocketIO(app)
 
 
 # Database Models
@@ -50,7 +53,7 @@ class Player(db.Model):
     # Core fields
     team = db.Column(db.String(50), nullable=False)
     position = db.Column(db.String(20), nullable=False)
-    status = db.Column(db.String(1))  # a=available, i=injured, s=suspended
+    status = db.Column(db.String(20))  # Changed from 1 char to accommodate "Available"
 
     # Draft status
     drafted = db.Column(db.Boolean, default=False)
@@ -124,16 +127,23 @@ class Player(db.Model):
             'goals': self.goals_scored,
             'assists': self.assists,
             'clean_sheets': self.clean_sheets,
-            'expected_goals': round(self.expected_goals, 2),
-            'expected_assists': round(self.expected_assists, 2),
+            'expected_goals': round(self.expected_goals, 2) if self.expected_goals else 0,
+            'expected_assists': round(self.expected_assists, 2) if self.expected_assists else 0,
             'ict_index': self.ict_index
         }
+
 
 class DraftTeam(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     owner = db.Column(db.String(100), nullable=False)
+    access_token = db.Column(db.String(32), unique=True)
     players = db.relationship('Player', backref='draft_team', lazy=True)
+
+    def generate_access_token(self):
+        """Generate a unique access token for this team"""
+        self.access_token = secrets.token_urlsafe(16)
+        return self.access_token
 
     def get_roster(self):
         roster = {
@@ -182,7 +192,8 @@ class Draft(db.Model):
     total_teams = db.Column(db.Integer)
     is_active = db.Column(db.Boolean, default=True)
     draft_order = db.Column(db.Text)  # JSON string of team IDs
-    is_snake_draft = db.Column(db.Boolean, default=True)  # New field!
+    is_snake_draft = db.Column(db.Boolean, default=True)
+    is_locked = db.Column(db.Boolean, default=False)  # For pre-draft lock
 
     @property
     def current_round(self):
@@ -234,6 +245,11 @@ class Wishlist(db.Model):
     __table_args__ = (db.UniqueConstraint('team_id', 'player_id'),)
 
 
+# Helper function
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
 # Routes
 @app.route('/')
 def index():
@@ -245,7 +261,10 @@ def index():
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
     if request.method == 'POST':
-        # Clear existing data
+        # Mark this session as admin since they're setting up
+        session['is_admin'] = True
+
+        # Clear only teams and draft data - NOT players!
         DraftTeam.query.delete()
         Draft.query.delete()
 
@@ -261,6 +280,7 @@ def setup():
         for name, owner in zip(team_names, team_owners):
             if name and owner:
                 team = DraftTeam(name=name, owner=owner)
+                team.generate_access_token()  # Generate access token
                 db.session.add(team)
                 teams.append(team)
 
@@ -273,8 +293,8 @@ def setup():
             draft_order=json.dumps(draft_order)
         )
         db.session.add(draft)
-
         db.session.commit()
+
         return redirect(url_for('draft'))
 
     return render_template('setup.html')
@@ -351,6 +371,12 @@ def draft():
 @app.route('/draft_player/<int:player_id>', methods=['POST'])
 def draft_player(player_id):
     draft = Draft.query.first()
+
+    # Check if draft is locked
+    if getattr(draft, 'is_locked', False):
+        flash('Draft is currently locked. Wait for draft night!', 'error')
+        return redirect(url_for('draft'))
+
     if not draft or not draft.is_active:
         return jsonify({'error': 'No active draft'}), 400
 
@@ -365,8 +391,6 @@ def draft_player(player_id):
     # CHECK DRAFT CONSTRAINTS
     can_draft, reason = current_team.can_draft_player(player)
     if not can_draft:
-        # Flash message and redirect back
-        from flask import flash
         flash(f"Cannot draft {player.name}: {reason}", 'error')
         return redirect(url_for('draft'))
 
@@ -374,44 +398,39 @@ def draft_player(player_id):
     player.drafted = True
     player.drafted_by = current_team.id
 
-    # Check which teams had this player on their wishlist
-    wishlist_entries = Wishlist.query.filter_by(player_id=player_id).all()
-    affected_teams = []
-    for entry in wishlist_entries:
-        if entry.team_id != current_team_id:
-            affected_teams.append({
-                'team_id': entry.team_id,
-                'team_name': entry.team.name,
-                'rank': entry.rank
-            })
-
     # Advance to next pick
     draft.advance_to_next_pick()
 
     db.session.commit()
 
-    # Emit updates
-    #socketio.emit('player_drafted', {
-    #    'player_name': player.name,
-    #    'player_id': player.id,
-    #    'team_name': current_team.name,
-    #    'next_team_id': draft.get_current_team_id()
-    #})
-
-    #if affected_teams:
-    #    socketio.emit('wishlist_player_drafted', {
-    #        'player_name': player.name,
-    #        'player_id': player.id,
-    #        'drafted_by': current_team.name,
-    #        'affected_teams': affected_teams
-    #    })
-
     return redirect(url_for('draft'))
+
+
+@app.route('/team/access/<token>')
+def team_access(token):
+    """Access team page via secret token"""
+    team = DraftTeam.query.filter_by(access_token=token).first_or_404()
+
+    # Redirect to wishlist with token in session
+    session[f'team_{team.id}_access'] = True
+    return redirect(url_for('team_wishlist', team_id=team.id))
+
+
+@app.route('/team/<int:team_id>')
+def view_team(team_id):
+    team = DraftTeam.query.get_or_404(team_id)
+    roster = team.get_roster()
+    draft = Draft.query.first()
+    return render_template('team.html', team=team, roster=roster, draft=draft)
 
 
 @app.route('/team/<int:team_id>/wishlist')
 def team_wishlist(team_id):
     team = DraftTeam.query.get_or_404(team_id)
+
+    # Check if user has access (either admin or has the token)
+    if not session.get(f'team_{team_id}_access') and not session.get('is_admin'):
+        return "Access denied. Please use your team's secret link.", 403
 
     # Get sorting and filtering preferences from URL parameters
     sort_by = request.args.get('sort', 'total_points')
@@ -525,19 +544,16 @@ def reorder_wishlist(team_id):
     return jsonify({'success': True})
 
 
-@app.route('/team/<int:team_id>')
-def view_team(team_id):
-    team = DraftTeam.query.get_or_404(team_id)
-    roster = team.get_roster()
-    return render_template('team.html', team=team, roster=roster)
+# Import routes
+@app.route('/import_players')
+def import_players():
+    """Basic CSV import page - just redirects to Excel import for now"""
+    return redirect(url_for('import_excel'))
 
 
-# Excel import route
 @app.route('/import_excel', methods=['GET', 'POST'])
 def import_excel():
     if request.method == 'POST':
-        print(f"Upload folder: {app.config.get('UPLOAD_FOLDER')}")  # Debug line
-        print(f"Files: {request.files}")  # Debug line
         if 'file' not in request.files:
             return render_template('import_excel.html', error='No file uploaded')
 
@@ -565,7 +581,7 @@ def import_excel():
             return render_template('import_excel.html', success=True, **result)
 
         except Exception as e:
-            if os.path.exists(filepath):
+            if filepath and os.path.exists(filepath):
                 os.remove(filepath)
             return render_template('import_excel.html', error=f'Error: {str(e)}')
 
@@ -573,8 +589,6 @@ def import_excel():
     current_players = Player.query.count()
     return render_template('import_excel.html', current_players=current_players)
 
-
-# Update your import_fpl_excel function in app.py
 
 def import_fpl_excel(filepath):
     """Import FPL data from Excel file - handles both old and new formats"""
@@ -715,8 +729,170 @@ def import_fpl_excel(filepath):
         raise Exception(f"Failed to read Excel file: {str(e)}")
 
 
-# Admin Features
+# Admin routes
+@app.route('/admin/database')
+def admin_database():
+    """Admin page to inspect database contents"""
+    try:
+        from sqlalchemy import inspect
 
+        inspector = inspect(db.engine)
+        tables = inspector.get_table_names()
+
+        db_info = {}
+
+        for table in tables:
+            # Get columns
+            columns = inspector.get_columns(table)
+
+            # Get row count
+            if table == 'player':
+                count = Player.query.count()
+                sample = Player.query.limit(5).all()
+            elif table == 'draft_team':
+                count = DraftTeam.query.count()
+                sample = DraftTeam.query.limit(5).all()
+            elif table == 'draft':
+                count = Draft.query.count()
+                sample = Draft.query.limit(5).all()
+            elif table == 'wishlist':
+                count = Wishlist.query.count()
+                sample = Wishlist.query.limit(5).all()
+            else:
+                count = 0
+                sample = []
+
+            db_info[table] = {
+                'columns': columns,
+                'count': count,
+                'sample': sample
+            }
+
+        return render_template('admin_database.html', db_info=db_info, tables=tables)
+
+    except Exception as e:
+        return f"Error inspecting database: {str(e)}"
+
+
+@app.route('/admin/players')
+def admin_players():
+    """View all players in a table format"""
+    players = Player.query.all()
+    return render_template('admin_players.html', players=players)
+
+
+@app.route('/admin/team_links')
+def admin_team_links():
+    """Admin page to generate and view team access links"""
+    teams = DraftTeam.query.all()
+
+    # Generate tokens for teams that don't have them
+    for team in teams:
+        if not team.access_token:
+            team.generate_access_token()
+    db.session.commit()
+
+    return render_template('admin_team_links.html', teams=teams)
+
+
+@app.route('/admin/export_db')
+def export_database():
+    """Export entire database as JSON for backup"""
+    try:
+        data = {
+            'players': [p.to_dict() for p in Player.query.all()],
+            'teams': [{
+                'id': t.id,
+                'name': t.name,
+                'owner': t.owner,
+                'access_token': t.access_token,
+                'players': [p.name for p in t.players]
+            } for t in DraftTeam.query.all()],
+            'wishlists': [{
+                'team_name': w.team.name,
+                'player_name': w.player.name,
+                'rank': w.rank
+            } for w in Wishlist.query.all()],
+            'draft': []
+        }
+
+        draft = Draft.query.first()
+        if draft:
+            data['draft'] = {
+                'current_pick': draft.current_pick,
+                'current_team_index': draft.current_team_index,
+                'is_active': draft.is_active,
+                'current_round': draft.current_round,
+                'is_snake_draft': draft.is_snake_draft
+            }
+
+        return jsonify(data)
+
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+
+@app.route('/admin/reset_database')
+def reset_database():
+    """Reset database - requires confirmation"""
+    confirm = request.args.get('confirm', 'no')
+
+    if confirm != 'yes':
+        return """
+        <h2>⚠️ Database Reset Confirmation</h2>
+        <p><strong>WARNING:</strong> This will delete ALL data in the database!</p>
+        <p>Are you sure you want to proceed?</p>
+        <a href="/admin/reset_database?confirm=yes" style="background-color: red; color: white; padding: 10px; text-decoration: none;">Yes, Reset Database</a>
+        <a href="/" style="background-color: green; color: white; padding: 10px; text-decoration: none; margin-left: 10px;">No, Go Back</a>
+        """
+
+    try:
+        # Drop all tables
+        db.drop_all()
+        # Recreate all tables
+        db.create_all()
+        return """
+        <h2>✅ Database Reset Complete!</h2>
+        <p>All tables have been recreated with the new schema.</p>
+        <p><a href="/">Go to Home</a></p>
+        <p><a href="/import_excel">Import Players from Excel</a></p>
+        <p><a href="/admin/database">View Database Info</a></p>
+        """
+    except Exception as e:
+        return f"Error resetting database: {str(e)}"
+
+
+@app.route('/toggle_draft_lock')
+def toggle_draft_lock():
+    """Admin route to lock/unlock drafting"""
+    if not session.get('is_admin'):
+        return "Admin access required", 403
+
+    draft = Draft.query.first()
+    if draft:
+        draft.is_locked = not getattr(draft, 'is_locked', False)
+        db.session.commit()
+        status = "locked" if draft.is_locked else "unlocked"
+        return f"Draft is now {status}"
+    return "No draft found"
+
+
+@app.route('/init_db')
+def init_database():
+    """Initialize database - run this once after deployment"""
+    try:
+        db.create_all()
+        return """
+        <h2>✅ Database Initialized!</h2>
+        <p>All tables have been created successfully.</p>
+        <p><a href="/">Go to Home</a></p>
+        <p><a href="/import_excel">Import Players</a></p>
+        """
+    except Exception as e:
+        return f"Error initializing database: {str(e)}"
+
+
+# Debug routes
 @app.route('/debug_excel')
 def debug_excel():
     """Debug route to check Excel file structure"""
@@ -786,164 +962,12 @@ def check_player_stats():
 
     return output
 
-@app.route('/admin/database')
-def admin_database():
-    """Admin page to inspect database contents"""
-    try:
-        from sqlalchemy import inspect
 
-        inspector = inspect(db.engine)
-        tables = inspector.get_table_names()
-
-        db_info = {}
-
-        for table in tables:
-            # Get columns
-            columns = inspector.get_columns(table)
-
-            # Get row count
-            if table == 'player':
-                count = Player.query.count()
-                sample = Player.query.limit(5).all()
-            elif table == 'draft_team':
-                count = DraftTeam.query.count()
-                sample = DraftTeam.query.limit(5).all()
-            elif table == 'draft':
-                count = Draft.query.count()
-                sample = Draft.query.limit(5).all()
-            else:
-                count = 0
-                sample = []
-
-            db_info[table] = {
-                'columns': columns,
-                'count': count,
-                'sample': sample
-            }
-
-        return render_template('admin_database.html', db_info=db_info, tables=tables)
-
-    except Exception as e:
-        return f"Error inspecting database: {str(e)}"
-
-
-@app.route('/admin/players')
-def admin_players():
-    """View all players in a table format"""
-    players = Player.query.all()
-    return render_template('admin_players.html', players=players)
-
-
-@app.route('/admin/export_db')
-def export_database():
-    """Export entire database as JSON for backup"""
-    try:
-        data = {
-            'players': [p.to_dict() for p in Player.query.all()],
-            'teams': [{
-                'id': t.id,
-                'name': t.name,
-                'owner': t.owner,
-                'players': [p.name for p in t.players]
-            } for t in DraftTeam.query.all()],
-            'draft': []
-        }
-
-        draft = Draft.query.first()
-        if draft:
-            data['draft'] = {
-                'current_pick': draft.current_pick,
-                'current_team_index': draft.current_team_index,
-                'is_active': draft.is_active
-            }
-
-        return jsonify(data)
-
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/import_players')
-def import_players():
-    """Basic CSV import page - just redirects to Excel import for now"""
-    # For now, just redirect to the Excel import
-    return redirect(url_for('import_excel'))
-
-# One-time reset function (safe to keep in code)
-@app.route('/admin/reset_database')
-def reset_database():
-    """Reset database - requires confirmation"""
-    confirm = request.args.get('confirm', 'no')
-
-@app.route('/init_db_secret_route')
-def init_database():
-    """Initialize database - run this once after deployment"""
-    try:
-        db.create_all()
-        return "Database initialized successfully! You can now delete this route for security."
-    except Exception as e:
-        return f"Error initializing database: {str(e)}"
-
-    if confirm != 'yes':
-        return """
-        <h2>⚠️ Database Reset Confirmation</h2>
-        <p><strong>WARNING:</strong> This will delete ALL data in the database!</p>
-        <p>Are you sure you want to proceed?</p>
-        <a href="/admin/reset_database?confirm=yes" style="background-color: red; color: white; padding: 10px; text-decoration: none;">Yes, Reset Database</a>
-        <a href="/" style="background-color: green; color: white; padding: 10px; text-decoration: none; margin-left: 10px;">No, Go Back</a>
-        """
-
-    try:
-        # Drop all tables
-        db.drop_all()
-        # Recreate all tables
-        db.create_all()
-        return """
-        <h2>✅ Database Reset Complete!</h2>
-        <p>All tables have been recreated with the new schema.</p>
-        <p><a href="/">Go to Home</a></p>
-        <p><a href="/import_excel">Import Players from Excel</a></p>
-        <p><a href="/admin/database">View Database Info</a></p>
-        """
-    except Exception as e:
-        return f"Error resetting database: {str(e)}"
-
-# Create tables
+# Create tables when app starts (only in development)
 with app.app_context():
     db.create_all()
 
-# HTML Templates (you'll need to create these in a 'templates' folder)
-# Here's the structure you'll need:
-"""
-templates/
-    base.html       # Base template with common HTML structure
-    index.html      # Home page showing all teams
-    setup.html      # Initial setup for creating teams
-    draft.html      # Main draft interface
-    team.html       # View individual team roster
-"""
-
-# Example base.html content:
-base_html = '''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>EPL Fantasy Draft</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .player-list { margin: 20px 0; }
-        .player { padding: 10px; border: 1px solid #ddd; margin: 5px 0; }
-        .drafted { background-color: #f0f0f0; opacity: 0.6; }
-        .current-pick { background-color: #e3f2fd; padding: 20px; margin: 20px 0; }
-        .roster { margin: 20px 0; }
-        .position-group { margin: 15px 0; }
-    </style>
-</head>
-<body>
-    <h1>EPL Fantasy Draft System</h1>
-    {% block content %}{% endblock %}
-</body>
-</html>
-'''
-
+# Run the app
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    # For development
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
