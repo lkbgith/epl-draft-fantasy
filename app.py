@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import openpyxl
 import secrets
+from sqlalchemy import text
 
 # Create Flask app FIRST
 app = Flask(__name__)
@@ -133,12 +134,30 @@ class Player(db.Model):
         }
 
 
+class League(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    access_code = db.Column(db.String(10), unique=True)  # Simple code for sharing
+
+    # Relationships
+    teams = db.relationship('DraftTeam', backref='league', lazy=True)
+    draft = db.relationship('Draft', backref='league', uselist=False)  # One draft per league
+
+    def generate_access_code(self):
+        """Generate a simple 6-character access code"""
+        import random
+        import string
+        self.access_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        return self.access_code
+
+
 class DraftTeam(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     owner = db.Column(db.String(100), nullable=False)
     access_token = db.Column(db.String(32), unique=True)
-    league_id = db.Column(db.Integer, db.ForeignKey('league.id'), nullable=True)  # ADD THIS LINE
+    league_id = db.Column(db.Integer, db.ForeignKey('league.id'), nullable=True)
     players = db.relationship('Player', backref='draft_team', lazy=True)
 
     def generate_access_token(self):
@@ -195,7 +214,7 @@ class Draft(db.Model):
     draft_order = db.Column(db.Text)
     is_snake_draft = db.Column(db.Boolean, default=True)
     is_locked = db.Column(db.Boolean, default=False)
-    league_id = db.Column(db.Integer, db.ForeignKey('league.id'), nullable=True)  # ADD THIS LINE
+    league_id = db.Column(db.Integer, db.ForeignKey('league.id'), nullable=True)
 
     @property
     def current_round(self):
@@ -248,30 +267,53 @@ class Wishlist(db.Model):
     __table_args__ = (db.UniqueConstraint('team_id', 'player_id'),)
 
 
-class League(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    access_code = db.Column(db.String(10), unique=True)  # Simple code for sharing
-
-    # Relationships
-    teams = db.relationship('DraftTeam', backref='league', lazy=True)
-    draft = db.relationship('Draft', backref='league', uselist=False)  # One draft per league
-
-    def generate_access_code(self):
-        """Generate a simple 6-character access code"""
-        import random
-        import string
-        self.access_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        return self.access_code
-
-
 # Helper function
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-# Routes
+# Database initialization and migration function
+def init_and_migrate_db():
+    """Initialize database and handle migrations"""
+    with app.app_context():
+        # Create all tables
+        db.create_all()
+
+        # Check if we need to add league columns (migration)
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+
+        # Check if draft_team table exists and has league_id column
+        if 'draft_team' in inspector.get_table_names():
+            columns = [col['name'] for col in inspector.get_columns('draft_team')]
+            if 'league_id' not in columns:
+                print("Adding league_id to draft_team table...")
+                with db.engine.connect() as conn:
+                    conn.execute(text('ALTER TABLE draft_team ADD COLUMN league_id INTEGER'))
+                    conn.commit()
+
+        # Check if draft table exists and has league_id column
+        if 'draft' in inspector.get_table_names():
+            columns = [col['name'] for col in inspector.get_columns('draft')]
+            if 'league_id' not in columns:
+                print("Adding league_id to draft table...")
+                with db.engine.connect() as conn:
+                    conn.execute(text('ALTER TABLE draft ADD COLUMN league_id INTEGER'))
+                    conn.commit()
+
+        # Check if wishlist table exists and has league_id column
+        if 'wishlist' in inspector.get_table_names():
+            columns = [col['name'] for col in inspector.get_columns('wishlist')]
+            if 'league_id' not in columns:
+                print("Adding league_id to wishlist table...")
+                with db.engine.connect() as conn:
+                    conn.execute(text('ALTER TABLE wishlist ADD COLUMN league_id INTEGER'))
+                    conn.commit()
+
+        print("Database initialization and migration complete!")
+
+
+# Routes (keeping all your existing routes exactly as they are)
 
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
@@ -965,6 +1007,9 @@ def admin_database():
             elif table == 'wishlist':
                 count = Wishlist.query.count()
                 sample = Wishlist.query.limit(5).all()
+            elif table == 'league':
+                count = League.query.count()
+                sample = League.query.limit(5).all()
             else:
                 count = 0
                 sample = []
@@ -1084,56 +1129,22 @@ def toggle_draft_lock():
     return "No draft found"
 
 
+# The /init_db route is no longer needed since init_and_migrate_db()
+# runs automatically on startup. Keeping it just for manual re-initialization if needed.
 @app.route('/init_db')
 def init_database():
-    """Initialize database - run this once after deployment"""
+    """Manual database initialization - normally happens automatically on startup"""
     try:
-        db.create_all()
+        init_and_migrate_db()
         return """
-        <h2>✅ Database Initialized!</h2>
-        <p>All tables have been created successfully.</p>
+        <h2>✅ Database Re-Initialized!</h2>
+        <p>All tables have been checked and migrations applied successfully.</p>
+        <p>Note: This normally happens automatically when the app starts.</p>
         <p><a href="/">Go to Home</a></p>
         <p><a href="/import_excel">Import Players</a></p>
         """
     except Exception as e:
         return f"Error initializing database: {str(e)}"
-
-
-@app.route('/migrate_for_leagues') #temp route
-def migrate_for_leagues():
-    """Add league support to existing database"""
-    if not session.get('is_admin'):
-        # First visit /setup to become admin
-        return "Please visit /setup first to gain admin access, then come back here"
-
-    try:
-        # Create new tables
-        db.create_all()
-
-        # Try to add columns (might fail if they exist)
-        try:
-            db.engine.execute('ALTER TABLE draft_team ADD COLUMN league_id INTEGER')
-        except:
-            pass
-
-        try:
-            db.engine.execute('ALTER TABLE draft ADD COLUMN league_id INTEGER')
-        except:
-            pass
-
-        try:
-            db.engine.execute('ALTER TABLE wishlist ADD COLUMN league_id INTEGER')
-        except:
-            pass
-
-        return """
-        <h2>✅ Database Updated!</h2>
-        <p>League support has been added.</p>
-        <p><a href="/">Go to Home</a></p>
-        <p style="color: red;"><strong>IMPORTANT: Remove the /migrate_for_leagues route from your code after using this!</strong></p>
-        """
-    except Exception as e:
-        return f"Partial success - some items may have already existed: {str(e)}"
 
 
 # Debug routes
@@ -1207,9 +1218,9 @@ def check_player_stats():
     return output
 
 
-# Create tables when app starts (only in development)
+# Initialize and migrate database on startup
 with app.app_context():
-    db.create_all()
+    init_and_migrate_db()
 
 # Run the app
 if __name__ == '__main__':
