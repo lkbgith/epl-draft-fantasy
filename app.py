@@ -9,6 +9,7 @@ import numpy as np
 import openpyxl
 import secrets
 from sqlalchemy import text
+from sqlalchemy.pool import NullPool
 
 # Create Flask app FIRST
 app = Flask(__name__)
@@ -23,10 +24,26 @@ if 'DATABASE_URL' in os.environ:
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://')
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+
+    # IMPORTANT: Add these settings for Render PostgreSQL
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,  # Verify connections before using them
+        'pool_recycle': 300,  # Recycle connections after 5 minutes
+        'pool_size': 10,  # Number of connections to maintain in pool
+        'max_overflow': 20,  # Maximum overflow connections
+        'connect_args': {
+            'connect_timeout': 10,
+            'keepalives': 1,
+            'keepalives_idle': 30,
+            'keepalives_interval': 10,
+            'keepalives_count': 5,
+        }
+    }
 else:
     # Local development
     basedir = os.path.abspath(os.path.dirname(__file__))
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'fantasy_draft.db')
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {}  # No special options needed for SQLite
 
 # Other configurations
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -39,6 +56,23 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Create database instance FOURTH
 db = SQLAlchemy(app)
+
+
+# Add this helper function to handle database operations with retry
+def db_operation_with_retry(operation, max_retries=3):
+    """Execute a database operation with automatic retry on connection errors"""
+    for attempt in range(max_retries):
+        try:
+            return operation()
+        except Exception as e:
+            if 'SSL connection' in str(e) or 'server closed the connection' in str(e):
+                if attempt < max_retries - 1:
+                    db.session.rollback()
+                    db.session.remove()
+                    db.session.begin()
+                    continue
+            raise e
+    return None
 
 
 # Database Models
@@ -429,25 +463,80 @@ def draft():
 def create_league():
     """Create a new league"""
     if request.method == 'POST':
-        league_name = request.form.get('league_name')
+        try:
+            league_name = request.form.get('league_name')
 
-        # Check if league name already exists
-        existing = League.query.filter_by(name=league_name).first()
-        if existing:
-            flash('A league with this name already exists. Please choose another name.', 'error')
+            # Handle the database query with retry logic
+            def check_existing():
+                # Force a new connection
+                db.session.remove()
+                db.session.begin()
+                return League.query.filter_by(name=league_name).first()
+
+            try:
+                existing = db_operation_with_retry(check_existing)
+            except Exception as e:
+                # If still failing, try to reconnect completely
+                db.session.rollback()
+                db.session.remove()
+                db.engine.dispose()  # Dispose of the connection pool
+                existing = League.query.filter_by(name=league_name).first()
+
+            if existing:
+                flash('A league with this name already exists. Please choose another name.', 'error')
+                return render_template('create_league.html')
+
+            # Create new league with retry logic
+            def create_new_league():
+                league = League(name=league_name)
+                league.generate_access_code()
+                db.session.add(league)
+                db.session.commit()
+                return league
+
+            try:
+                league = db_operation_with_retry(create_new_league)
+            except Exception as e:
+                # Final fallback
+                db.session.rollback()
+                db.session.remove()
+                db.engine.dispose()
+
+                league = League(name=league_name)
+                league.generate_access_code()
+                db.session.add(league)
+                db.session.commit()
+
+            # Store league ID in session
+            session['current_league_id'] = league.id
+            session['is_league_admin'] = True
+
+            return redirect(url_for('setup_league', league_id=league.id))
+
+        except Exception as e:
+            # Log the error for debugging
+            app.logger.error(f"Error creating league: {str(e)}")
+
+            # Try to rollback the session
+            db.session.rollback()
+            db.session.remove()
+
+            # Check the type of error
+            if 'SSL connection' in str(e) or 'closed unexpectedly' in str(e):
+                flash('Database connection lost. Please try again.', 'warning')
+                # Force reconnection
+                db.engine.dispose()
+            elif 'relation "league" does not exist' in str(e).lower():
+                # Try to create the table
+                try:
+                    db.create_all()
+                    flash('Database tables were missing but have been created. Please try again.', 'warning')
+                except:
+                    flash('Database error: Tables need to be initialized. Please contact admin.', 'error')
+            else:
+                flash(f'An error occurred: {str(e)}', 'error')
+
             return render_template('create_league.html')
-
-        # Create new league
-        league = League(name=league_name)
-        league.generate_access_code()
-        db.session.add(league)
-        db.session.commit()
-
-        # Store league ID in session
-        session['current_league_id'] = league.id
-        session['is_league_admin'] = True
-
-        return redirect(url_for('setup_league', league_id=league.id))
 
     return render_template('create_league.html')
 
