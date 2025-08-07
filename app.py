@@ -1099,7 +1099,7 @@ def init_database():
         return f"Error initializing database: {str(e)}"
 
 
-@app.route('/migrate_for_leagues')
+@app.route('/migrate_for_leagues') #temp route
 def migrate_for_leagues():
     """Add league support to existing database"""
     if not session.get('is_admin'):
