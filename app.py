@@ -39,7 +39,7 @@ class Player(db.Model):
     team = db.Column(db.String(50), nullable=False)
     position = db.Column(db.String(20), nullable=False)
     status = db.Column(db.String(1))  # a=available, i=injured, s=suspended
-    #notes = db.Column(db.String(500))
+    notes = db.Column(db.String(500))
 
     # Draft status
     drafted = db.Column(db.Boolean, default=False)
@@ -444,8 +444,8 @@ def team_wishlist(team_id):
     team = DraftTeam.query.get_or_404(team_id)
 
     # Check if user has access (either admin or has the token)
-    if not session.get(f'team_{team_id}_access') and not session.get('is_admin'):
-        return "Access denied. Please use your team's secret link.", 403
+    #if not session.get(f'team_{team_id}_access') and not session.get('is_admin'):
+    #    return "Access denied. Please use your team's secret link.", 403
 
     # Get sorting and filtering preferences from URL parameters
     sort_by = request.args.get('sort', 'total_points')
