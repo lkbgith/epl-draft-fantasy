@@ -1,0 +1,136 @@
+<!-- This is a partial template for the team formation view -->
+<div style="text-align: center;">
+    <h3>{{ team.name }}'s Squad</h3>
+    <p style="color: #666;">Manager: {{ team.owner }}</p>
+</div>
+
+<!-- Soccer Field Visualization -->
+<div style="position: relative; width: 100%; max-width: 600px; margin: 20px auto; background: linear-gradient(to bottom, #4CAF50 0%, #45a049 50%, #4CAF50 100%); border-radius: 10px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+
+    <!-- Field lines -->
+    <div style="position: absolute; top: 50%; left: 10%; right: 10%; height: 2px; background: rgba(255,255,255,0.3);"></div>
+    <div style="position: absolute; top: 50%; left: 50%; transform: translateX(-50%); width: 100px; height: 100px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%;"></div>
+
+    <!-- Penalty areas -->
+    <div style="position: absolute; bottom: 0; left: 20%; right: 20%; height: 80px; border: 2px solid rgba(255,255,255,0.3); border-bottom: none; border-radius: 10px 10px 0 0;"></div>
+    <div style="position: absolute; top: 0; left: 20%; right: 20%; height: 80px; border: 2px solid rgba(255,255,255,0.3); border-top: none; border-radius: 0 0 10px 10px;"></div>
+
+    <!-- Players Container -->
+    <div style="position: relative; height: 400px;">
+
+        <!-- Goalkeepers (Bottom) -->
+        <div style="position: absolute; bottom: 10px; left: 0; right: 0; text-align: center;">
+            {% for player in roster['GK'] %}
+            <div style="display: inline-block; margin: 0 10px; text-align: center;">
+                <div style="width: 60px; height: 60px; background: #ff6b6b; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); margin: 0 auto;">
+                    GK
+                </div>
+                <div style="margin-top: 5px; font-size: 11px; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); max-width: 80px;">
+                    <strong>{{ player.web_name or player.second_name }}</strong><br>
+                    <span style="font-size: 9px;">{{ player.team }}</span>
+                </div>
+            </div>
+            {% endfor %}
+            {% for i in range(2 - roster['GK']|length) %}
+            <div style="display: inline-block; margin: 0 10px;">
+                <div style="width: 60px; height: 60px; border: 2px dashed rgba(255,255,255,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5); font-size: 12px;">
+                    GK
+                </div>
+                <div style="margin-top: 5px; font-size: 11px; color: rgba(255,255,255,0.5);">Empty</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Defenders (Lower middle) -->
+        <div style="position: absolute; bottom: 100px; left: 0; right: 0; text-align: center;">
+            {% for player in roster['DEF'] %}
+            <div style="display: inline-block; margin: 0 8px; text-align: center;">
+                <div style="width: 55px; height: 55px; background: #4ecdc4; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 11px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); margin: 0 auto;">
+                    DEF
+                </div>
+                <div style="margin-top: 5px; font-size: 10px; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); max-width: 70px;">
+                    <strong>{{ player.web_name or player.second_name }}</strong><br>
+                    <span style="font-size: 9px;">{{ player.team }}</span>
+                </div>
+            </div>
+            {% endfor %}
+            {% for i in range(5 - roster['DEF']|length) %}
+            <div style="display: inline-block; margin: 0 8px;">
+                <div style="width: 55px; height: 55px; border: 2px dashed rgba(255,255,255,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5); font-size: 11px;">
+                    DEF
+                </div>
+                <div style="margin-top: 5px; font-size: 10px; color: rgba(255,255,255,0.5);">Empty</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Midfielders (Middle) -->
+        <div style="position: absolute; top: 50%; transform: translateY(-50%); left: 0; right: 0; text-align: center;">
+            {% for player in roster['MID'] %}
+            <div style="display: inline-block; margin: 0 8px; text-align: center;">
+                <div style="width: 55px; height: 55px; background: #45b7d1; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 11px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); margin: 0 auto;">
+                    MID
+                </div>
+                <div style="margin-top: 5px; font-size: 10px; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); max-width: 70px;">
+                    <strong>{{ player.web_name or player.second_name }}</strong><br>
+                    <span style="font-size: 9px;">{{ player.team }}</span>
+                </div>
+            </div>
+            {% endfor %}
+            {% for i in range(5 - roster['MID']|length) %}
+            <div style="display: inline-block; margin: 0 8px;">
+                <div style="width: 55px; height: 55px; border: 2px dashed rgba(255,255,255,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5); font-size: 11px;">
+                    MID
+                </div>
+                <div style="margin-top: 5px; font-size: 10px; color: rgba(255,255,255,0.5);">Empty</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Forwards (Top) -->
+        <div style="position: absolute; top: 10px; left: 0; right: 0; text-align: center;">
+            {% for player in roster['FWD'] %}
+            <div style="display: inline-block; margin: 0 15px; text-align: center;">
+                <div style="width: 60px; height: 60px; background: #96ceb4; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); margin: 0 auto;">
+                    FWD
+                </div>
+                <div style="margin-top: 5px; font-size: 11px; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); max-width: 80px;">
+                    <strong>{{ player.web_name or player.second_name }}</strong><br>
+                    <span style="font-size: 9px;">{{ player.team }}</span>
+                </div>
+            </div>
+            {% endfor %}
+            {% for i in range(3 - roster['FWD']|length) %}
+            <div style="display: inline-block; margin: 0 15px;">
+                <div style="width: 60px; height: 60px; border: 2px dashed rgba(255,255,255,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5); font-size: 12px;">
+                    FWD
+                </div>
+                <div style="margin-top: 5px; font-size: 11px; color: rgba(255,255,255,0.5);">Empty</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Squad Summary -->
+<div style="margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px;">
+    <h4 style="margin: 0 0 10px 0;">Squad Summary</h4>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; text-align: center;">
+        <div>
+            <span class="position-badge position-GK">GK: {{ roster['GK']|length }}/2</span>
+        </div>
+        <div>
+            <span class="position-badge position-DEF">DEF: {{ roster['DEF']|length }}/5</span>
+        </div>
+        <div>
+            <span class="position-badge position-MID">MID: {{ roster['MID']|length }}/5</span>
+        </div>
+        <div>
+            <span class="position-badge position-FWD">FWD: {{ roster['FWD']|length }}/3</span>
+        </div>
+    </div>
+
+    <div style="margin-top: 15px;">
+        <strong>Total Players:</strong> {{ roster['GK']|length + roster['DEF']|length + roster['MID']|length + roster['FWD']|length }}/15
+    </div>
+</div>
