@@ -67,12 +67,21 @@
         <h3>Available Players</h3>
 
         <!-- Enhanced Filter Controls -->
-        <div style="margin: 10px 0; padding: 10px; background-color: #f5f5f5; border-radius: 4px;">
+        <div style="margin: 10px 0; padding: 15px; background-color: #f5f5f5; border-radius: 4px;">
+            <!-- Search Box -->
+            <div style="margin-bottom: 10px;">
+                <input type="text"
+                       id="playerSearch"
+                       placeholder="🔍 Search by player name..."
+                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                       onkeyup="filterPlayers()">
+            </div>
+
             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                 <!-- Sort dropdown -->
                 <div>
                     <label style="margin-right: 5px; font-size: 12px;">Sort:</label>
-                    <select id="sortSelect" onchange="applyFilters()" style="padding: 5px;">
+                    <select id="sortSelect" onchange="updateFilters()" style="padding: 5px;">
                         <option value="total_points" {% if current_sort =='total_points' %}selected{% endif %}>Total Points</option>
                         <option value="points_per_game" {% if current_sort =='points_per_game' %}selected{% endif %}>Points Per Game</option>
                         <option value="now_cost" {% if current_sort =='now_cost' %}selected{% endif %}>Price</option>
@@ -86,7 +95,7 @@
                 <!-- Team filter dropdown -->
                 <div>
                     <label style="margin-right: 5px; font-size: 12px;">Team:</label>
-                    <select id="teamFilter" onchange="filterByTeam()" style="padding: 5px;">
+                    <select id="teamSelect" onchange="updateFilters()" style="padding: 5px;">
                         <option value="all">All Teams</option>
                         {% set teams = available_players | map(attribute='team') | unique | sort %}
                         {% for team in teams %}
@@ -94,26 +103,89 @@
                         {% endfor %}
                     </select>
                 </div>
-            </div>
-        </div>
 
-        <!-- Position Filter Buttons -->
-        <div class="filter-buttons" style="margin: 10px 0;">
-            <button onclick="filterPlayers('all')" class="btn position-filter active" data-position="all">All</button>
-            <button onclick="filterPlayers('GK')" class="btn position-filter" data-position="GK">GK</button>
-            <button onclick="filterPlayers('DEF')" class="btn position-filter" data-position="DEF">DEF</button>
-            <button onclick="filterPlayers('MID')" class="btn position-filter" data-position="MID">MID</button>
-            <button onclick="filterPlayers('FWD')" class="btn position-filter" data-position="FWD">FWD</button>
+                <!-- Position filter -->
+                <div>
+                    <label style="margin-right: 5px; font-size: 12px;">Position:</label>
+                    <select id="positionSelect" onchange="updateFilters()" style="padding: 5px;">
+                        <option value="all" {% if current_position =='all' %}selected{% endif %}>All Positions</option>
+                        <option value="GK" {% if current_position =='GK' %}selected{% endif %}>GK</option>
+                        <option value="DEF" {% if current_position =='DEF' %}selected{% endif %}>DEF</option>
+                        <option value="MID" {% if current_position =='MID' %}selected{% endif %}>MID</option>
+                        <option value="FWD" {% if current_position =='FWD' %}selected{% endif %}>FWD</option>
+                    </select>
+                </div>
+
+                <!-- Clear filters button -->
+                <button onclick="clearFilters()" class="btn" style="padding: 5px 10px; font-size: 12px; background-color: #666;">
+                    ✕ Clear Filters
+                </button>
+            </div>
+
+            <!-- Active filters display -->
+            <div id="activeFilters" style="margin-top: 10px; font-size: 12px; color: #666;"></div>
         </div>
 
         <!-- Player List -->
         <div class="player-list" style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
+            <div id="playerCount" style="font-size: 12px; color: #666; margin-bottom: 10px;">
+                Showing <span id="visibleCount">{{ available_players|length }}</span> of {{ available_players|length }} players
+            </div>
+
             {% for player in available_players %}
-            <div class="player-card" data-position="{{ player.position }}" data-team="{{ player.team }}" style="padding: 15px; display: flex;">
-                <div style="flex: 1;">
+            <div class="player-card"
+                 data-position="{{ player.position }}"
+                 data-team="{{ player.team }}"
+                 data-name="{{ player.full_name or player.name }}"
+                 data-search="{{ (player.first_name ~ ' ' ~ player.second_name ~ ' ' ~ player.web_name)|lower }}"
+                 style="padding: 15px; display: flex; position: relative;
+                        {% if player.status and player.status != 'Available' %}
+                            {% if 'injured' in player.status|lower or 'doubtful' in player.status|lower %}
+                                background-color: #ffebee; border-left: 4px solid #d32f2f;
+                            {% elif 'suspended' in player.status|lower %}
+                                background-color: #fff3e0; border-left: 4px solid #ff9800;
+                            {% elif 'unavailable' in player.status|lower %}
+                                background-color: #fce4ec; border-left: 4px solid #e91e63;
+                            {% endif %}
+                        {% endif %}">
+
+                <!-- Player Tooltip -->
+                <div class="player-tooltip" style="display: none; position: absolute; bottom: 100%; left: 10px; background: #333; color: white; padding: 10px; border-radius: 5px; font-size: 11px; width: 250px; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                    <strong>{{ player.full_name or player.name }}</strong><br>
+                    <span style="color: #ffd700;">{{ player.team }} - {{ player.position }}</span><br>
+                    {% if player.status %}
+                        <span style="color: {% if 'injured' in player.status|lower %}#ff6b6b{% elif 'suspended' in player.status|lower %}#ffa726{% else %}#66bb6a{% endif %};">
+                            Status: {{ player.status }}
+                        </span><br>
+                    {% endif %}
+                    {% if player.notes %}
+                        <span style="color: #90caf9;">Notes: {{ player.notes }}</span><br>
+                    {% endif %}
+                    <hr style="margin: 5px 0; border-color: #555;">
+                    Stats: {{ player.total_points or 0 }} pts | {{ player.minutes or 0 }} mins<br>
+                    {% if player.position in ['FWD', 'MID'] %}
+                        Goals: {{ player.goals_scored or 0 }} | Assists: {{ player.assists or 0 }}
+                    {% else %}
+                        Clean Sheets: {{ player.clean_sheets or 0 }}
+                    {% endif %}
+                </div>
+
+                <div style="flex: 1;"
+                     onmouseenter="this.parentElement.querySelector('.player-tooltip').style.display='block'"
+                     onmouseleave="this.parentElement.querySelector('.player-tooltip').style.display='none'">
                     <strong>{{ player.name }}</strong>
                     <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
                     <span style="color: #666;">{{ player.team }}</span>
+
+                    {% if player.status and player.status != 'Available' %}
+                        {% if 'injured' in player.status|lower or 'doubtful' in player.status|lower %}
+                            <span style="color: #d32f2f; font-size: 11px; margin-left: 5px;">🚑 Injured</span>
+                        {% elif 'suspended' in player.status|lower %}
+                            <span style="color: #ff9800; font-size: 11px; margin-left: 5px;">⚠️ Suspended</span>
+                        {% elif 'unavailable' in player.status|lower %}
+                            <span style="color: #e91e63; font-size: 11px; margin-left: 5px;">❌ Unavailable</span>
+                        {% endif %}
+                    {% endif %}
 
                     <div style="font-size: 12px; color: #666; margin-top: 5px;">
                         <span>Points: {{ player.total_points if player.total_points else "N/A" }}</span>
@@ -198,55 +270,71 @@
 </div>
 
 <script>
-// Position filter
-function filterPlayers(position) {
-    const players = document.querySelectorAll('.player-card');
-    const buttons = document.querySelectorAll('.position-filter');
+// Get current filter values from URL
+const urlParams = new URLSearchParams(window.location.search);
+let currentFilters = {
+    sort: urlParams.get('sort') || 'total_points',
+    position: urlParams.get('position') || 'all',
+    team: urlParams.get('team') || 'all'
+};
 
-    // Update active button
-    buttons.forEach(btn => {
-        if (btn.dataset.position === position) {
-            btn.classList.add('active');
-            btn.style.backgroundColor = '#2d0030';
-        } else {
-            btn.classList.remove('active');
-            btn.style.backgroundColor = '#38003c';
-        }
-    });
-
-    // Filter players
-    players.forEach(player => {
-        if (position === 'all' || player.dataset.position === position) {
-            player.style.display = 'flex';
-        } else {
-            player.style.display = 'none';
-        }
-    });
-}
-
-// Team filter
-function filterByTeam() {
-    const selectedTeam = document.getElementById('teamFilter').value;
-    const players = document.querySelectorAll('.player-card');
-
-    players.forEach(player => {
-        if (selectedTeam === 'all' || player.dataset.team === selectedTeam) {
-            if (player.style.display !== 'none') { // Respect position filter
-                player.style.display = 'flex';
-            }
-        } else {
-            player.style.display = 'none';
-        }
-    });
-}
-
-// Apply all filters
-function applyFilters() {
+// Update filters and reload page with new parameters
+function updateFilters() {
     const sort = document.getElementById('sortSelect').value;
-    const position = '{{ current_position }}';
-    const team = document.getElementById('teamFilter').value;
+    const position = document.getElementById('positionSelect').value;
+    const team = document.getElementById('teamSelect').value;
 
     window.location.href = `{{ url_for('draft') }}?sort=${sort}&position=${position}&team=${team}`;
+}
+
+// Clear all filters
+function clearFilters() {
+    window.location.href = `{{ url_for('draft') }}`;
+}
+
+// Client-side search filter (works with other filters)
+function filterPlayers() {
+    const searchTerm = document.getElementById('playerSearch').value.toLowerCase();
+    const players = document.querySelectorAll('.player-card');
+    let visibleCount = 0;
+
+    players.forEach(player => {
+        const searchData = player.dataset.search;
+        const matchesSearch = !searchTerm || searchData.includes(searchTerm);
+
+        if (matchesSearch) {
+            player.style.display = 'flex';
+            visibleCount++;
+        } else {
+            player.style.display = 'none';
+        }
+    });
+
+    // Update count
+    document.getElementById('visibleCount').textContent = visibleCount;
+
+    // Update active filters display
+    updateActiveFiltersDisplay();
+}
+
+// Update active filters display
+function updateActiveFiltersDisplay() {
+    const container = document.getElementById('activeFilters');
+    const filters = [];
+
+    const position = document.getElementById('positionSelect').value;
+    const team = document.getElementById('teamSelect').value;
+    const search = document.getElementById('playerSearch').value;
+
+    if (position !== 'all') filters.push(`Position: ${position}`);
+    if (team !== 'all') filters.push(`Team: ${team}`);
+    if (search) filters.push(`Search: "${search}"`);
+
+    if (filters.length > 0) {
+        container.innerHTML = '🔍 Active filters: ' + filters.join(' | ');
+    } else {
+        container.innerHTML = '';
+    }
 }
 
 // Show team formation
@@ -268,6 +356,11 @@ function closeFormation() {
     document.getElementById('formationModal').style.display = 'none';
 }
 
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateActiveFiltersDisplay();
+});
+
 // Auto-refresh for mobile (optional - every 30 seconds)
 if (window.innerWidth <= 768) {
     setInterval(() => {
@@ -277,8 +370,28 @@ if (window.innerWidth <= 768) {
 </script>
 
 <style>
-.position-filter.active {
-    background-color: #2d0030 !important;
+.player-card:hover {
+    background-color: #f0f8ff !important;
+}
+
+.player-tooltip {
+    pointer-events: none;
+}
+
+/* Status color coding */
+.status-injured {
+    background-color: #ffebee !important;
+    border-left: 4px solid #d32f2f !important;
+}
+
+.status-suspended {
+    background-color: #fff3e0 !important;
+    border-left: 4px solid #ff9800 !important;
+}
+
+.status-unavailable {
+    background-color: #fce4ec !important;
+    border-left: 4px solid #e91e63 !important;
 }
 </style>
 {% endblock %}

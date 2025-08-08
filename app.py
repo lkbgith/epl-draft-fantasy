@@ -39,6 +39,7 @@ class Player(db.Model):
     team = db.Column(db.String(50), nullable=False)
     position = db.Column(db.String(20), nullable=False)
     status = db.Column(db.String(1))  # a=available, i=injured, s=suspended
+    #notes = db.Column(db.String(500))
 
     # Draft status
     drafted = db.Column(db.Boolean, default=False)
@@ -279,7 +280,7 @@ def draft():
     # Get sorting and filtering preferences from URL parameters
     sort_by = request.args.get('sort', 'total_points')
     position_filter = request.args.get('position', 'all')
-    team_filter = request.args.get('team', 'all')  # NEW: Team filter
+    team_filter = request.args.get('team', 'all')  # Team filter
 
     # Build query for available players
     query = Player.query.filter_by(drafted=False)
@@ -288,7 +289,7 @@ def draft():
     if position_filter != 'all':
         query = query.filter_by(position=position_filter)
 
-    # Apply team filter (NEW)
+    # Apply team filter
     if team_filter != 'all':
         query = query.filter_by(team=team_filter)
 
@@ -328,7 +329,7 @@ def draft():
     # Get team objects in display order
     display_teams = [DraftTeam.query.get(team_id) for team_id in display_order]
 
-    # NEW: Get draft history
+    # Get draft history
     draft_history = get_draft_history()
 
     return render_template('draft.html',
@@ -338,12 +339,11 @@ def draft():
                            current_team=current_team,
                            current_sort=sort_by,
                            current_position=position_filter,
-                           current_team_filter=team_filter,  # NEW
+                           current_team_filter=team_filter,  # Pass team filter
                            display_teams=display_teams,
                            current_round=draft.current_round,
                            is_reverse_round=draft.is_reverse_round,
-                           draft_history=draft_history)  # NEW
-
+                           draft_history=draft_history)
 
 def get_draft_history():
     """Get the history of all drafted players in order"""
@@ -438,13 +438,19 @@ def team_formation_page(team_id):
                            roster=roster,
                            draft=draft)
 
+
 @app.route('/team/<int:team_id>/wishlist')
 def team_wishlist(team_id):
     team = DraftTeam.query.get_or_404(team_id)
 
+    # Check if user has access (either admin or has the token)
+    if not session.get(f'team_{team_id}_access') and not session.get('is_admin'):
+        return "Access denied. Please use your team's secret link.", 403
+
     # Get sorting and filtering preferences from URL parameters
     sort_by = request.args.get('sort', 'total_points')
     position_filter = request.args.get('position', 'all')
+    team_filter = request.args.get('team', 'all')  # Add team filter
 
     # Get wishlist items ordered by rank
     wishlist = Wishlist.query.filter_by(team_id=team_id).order_by(Wishlist.rank).all()
@@ -462,6 +468,10 @@ def team_wishlist(team_id):
     # Apply position filter
     if position_filter != 'all':
         query = query.filter_by(position=position_filter)
+
+    # Apply team filter
+    if team_filter != 'all':
+        query = query.filter_by(team=team_filter)
 
     # Apply sorting
     from sqlalchemy import desc, nullslast
@@ -490,7 +500,8 @@ def team_wishlist(team_id):
                            wishlist=wishlist,
                            available_players=available_players,
                            current_sort=sort_by,
-                           current_position=position_filter)
+                           current_position=position_filter,
+                           current_team_filter=team_filter)  # Add team filter
 
 
 @app.route('/team/<int:team_id>/wishlist/add/<int:player_id>', methods=['POST'])

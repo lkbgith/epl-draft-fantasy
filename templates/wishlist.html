@@ -14,7 +14,7 @@
             padding: 10px;
             border-radius: 4px;
             min-height: 200px;
-            max-height: 400px;
+            max-height: 600px;
             overflow-y: auto;
             overflow-x: hidden;
             border: 1px solid #ddd;
@@ -22,7 +22,14 @@
             {% if wishlist %}
                 {% for item in wishlist %}
                 <div class="wishlist-item" data-player-id="{{ item.player.id }}"
-                     style="background: white; padding: 10px; margin: 5px 0; border-radius: 4px; cursor: move; border: 1px solid #ddd;">
+                     style="background: white; padding: 10px; margin: 5px 0; border-radius: 4px; cursor: move; border: 1px solid #ddd;
+                            {% if item.player.status and item.player.status != 'Available' %}
+                                {% if 'injured' in item.player.status|lower or 'doubtful' in item.player.status|lower %}
+                                    background-color: #ffebee; border-left: 4px solid #d32f2f;
+                                {% elif 'suspended' in item.player.status|lower %}
+                                    background-color: #fff3e0; border-left: 4px solid #ff9800;
+                                {% endif %}
+                            {% endif %}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="flex: 1;">
                             <strong>#{{ item.rank }}. {{ item.player.name }}</strong>
@@ -33,6 +40,14 @@
                                 <span style="color: red; font-weight: bold;">[DRAFTED]</span>
                             {% endif %}
 
+                            {% if item.player.status and item.player.status != 'Available' %}
+                                {% if 'injured' in item.player.status|lower or 'doubtful' in item.player.status|lower %}
+                                    <span style="color: #d32f2f; font-size: 11px;">🚑</span>
+                                {% elif 'suspended' in item.player.status|lower %}
+                                    <span style="color: #ff9800; font-size: 11px;">⚠️</span>
+                                {% endif %}
+                            {% endif %}
+
                             <div style="font-size: 12px; color: #666;">
                                 {% if item.player.now_cost %}£{{ "%.1f"|format(item.player.now_cost) }}m | {% endif %}
                                 Points: {{ item.player.total_points or 'N/A' }} |
@@ -41,6 +56,12 @@
                                     | G: {{ item.player.goals_scored or 0 }} A: {{ item.player.assists or 0 }}
                                 {% endif %}
                             </div>
+
+                            {% if item.player.status and item.player.status != 'Available' %}
+                                <div style="font-size: 11px; color: #d32f2f; margin-top: 3px;">
+                                    Status: {{ item.player.status }}
+                                </div>
+                            {% endif %}
                         </div>
 
                         <form method="POST" action="{{ url_for('remove_from_wishlist', team_id=team.id, player_id=item.player.id) }}" style="display: inline;">
@@ -75,7 +96,7 @@
 
         <!-- Compact tips -->
         <div style="margin-top: 10px; font-size: 11px; color: #666;">
-            💡 Drag to reorder | Scroll to see all | #1 = highest priority
+            💡 Drag to reorder | Scroll to see all | #1 = highest priority | Hover for player details
         </div>
     </div>
 
@@ -83,32 +104,47 @@
     <div>
         <h3>Add Players to Wishlist</h3>
 
-        <!-- Filter Controls -->
+        <!-- Enhanced Filter Controls -->
         <div style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
-            <!-- Position Filter -->
-            <div class="filter-buttons" style="margin-bottom: 10px;">
-                <a href="{{ url_for('team_wishlist', team_id=team.id, position='all', sort=current_sort) }}"
-                   class="btn {% if current_position == 'all' %}active{% endif %}"
-                   style="padding: 5px 10px; font-size: 12px; {% if current_position == 'all' %}background-color: #2d0030;{% endif %}">All</a>
-                <a href="{{ url_for('team_wishlist', team_id=team.id, position='GK', sort=current_sort) }}"
-                   class="btn {% if current_position == 'GK' %}active{% endif %}"
-                   style="padding: 5px 10px; font-size: 12px; {% if current_position == 'GK' %}background-color: #2d0030;{% endif %}">GK</a>
-                <a href="{{ url_for('team_wishlist', team_id=team.id, position='DEF', sort=current_sort) }}"
-                   class="btn {% if current_position == 'DEF' %}active{% endif %}"
-                   style="padding: 5px 10px; font-size: 12px; {% if current_position == 'DEF' %}background-color: #2d0030;{% endif %}">DEF</a>
-                <a href="{{ url_for('team_wishlist', team_id=team.id, position='MID', sort=current_sort) }}"
-                   class="btn {% if current_position == 'MID' %}active{% endif %}"
-                   style="padding: 5px 10px; font-size: 12px; {% if current_position == 'MID' %}background-color: #2d0030;{% endif %}">MID</a>
-                <a href="{{ url_for('team_wishlist', team_id=team.id, position='FWD', sort=current_sort) }}"
-                   class="btn {% if current_position == 'FWD' %}active{% endif %}"
-                   style="padding: 5px 10px; font-size: 12px; {% if current_position == 'FWD' %}background-color: #2d0030;{% endif %}">FWD</a>
+            <!-- Search Box -->
+            <div style="margin-bottom: 10px;">
+                <input type="text"
+                       id="playerSearch"
+                       placeholder="🔍 Search by player name..."
+                       style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+            </div>
+
+            <!-- Filter dropdowns -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                <!-- Position Filter -->
+                <div>
+                    <label style="font-size: 11px;">Position:</label>
+                    <select id="positionSelect" onchange="updateWishlistFilters()" style="width: 100%; padding: 3px; font-size: 12px;">
+                        <option value="all" {% if current_position =='all' %}selected{% endif %}>All</option>
+                        <option value="GK" {% if current_position =='GK' %}selected{% endif %}>GK</option>
+                        <option value="DEF" {% if current_position =='DEF' %}selected{% endif %}>DEF</option>
+                        <option value="MID" {% if current_position =='MID' %}selected{% endif %}>MID</option>
+                        <option value="FWD" {% if current_position =='FWD' %}selected{% endif %}>FWD</option>
+                    </select>
+                </div>
+
+                <!-- Team Filter -->
+                <div>
+                    <label style="font-size: 11px;">Team:</label>
+                    <select id="teamSelect" onchange="updateWishlistFilters()" style="width: 100%; padding: 3px; font-size: 12px;">
+                        <option value="all">All Teams</option>
+                        {% set teams = available_players | map(attribute='team') | unique | sort %}
+                        {% for team in teams %}
+                            <option value="{{ team }}" {% if current_team_filter == team %}selected{% endif %}>{{ team }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
 
             <!-- Sort Dropdown -->
-            <div>
-                <label style="font-size: 12px;">Sort by:</label>
-                <select onchange="window.location.href='{{ url_for('team_wishlist', team_id=team.id) }}?position={{ current_position }}&sort=' + this.value"
-                        style="font-size: 12px; padding: 3px;">
+            <div style="margin-top: 5px;">
+                <label style="font-size: 11px;">Sort by:</label>
+                <select id="sortSelect" onchange="updateWishlistFilters()" style="width: 100%; padding: 3px; font-size: 12px;">
                     <option value="total_points" {% if current_sort =='total_points' %}selected{% endif %}>Total Points</option>
                     <option value="points_per_game" {% if current_sort =='points_per_game' %}selected{% endif %}>Points Per Game</option>
                     <option value="now_cost" {% if current_sort =='now_cost' %}selected{% endif %}>Price</option>
@@ -119,215 +155,5 @@
                 </select>
             </div>
         </div>
-
-        <!-- Search Box -->
-        <div style="margin-bottom: 10px;">
-            <input type="text" id="playerSearch" placeholder="Search players by name or team..."
-                   style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
-        </div>
-
-        <!-- Player List -->
-        <div style="height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
-            <div style="font-size: 11px; color: #666; margin-bottom: 5px;">
-                Showing {{ available_players|length }} players
-            </div>
-
-            {% for player in available_players %}
-            <div class="player-option" data-name="{{ player.name|lower }}" data-team="{{ player.team|lower }}"
-                 style="background: #f9f9f9; padding: 8px; margin: 5px 0; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-                <div style="flex: 1;">
-                    <strong>{{ player.name }}</strong>
-                    <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
-                    <span style="color: #666;">{{ player.team }}</span>
-
-                    <div style="font-size: 11px; color: #666;">
-                        {% if player.now_cost %}£{{ "%.1f"|format(player.now_cost) }}m | {% endif %}
-                        Pts: {{ player.total_points or 0 }} |
-                        PPG: {{ "%.1f"|format(player.points_per_game) if player.points_per_game else 'N/A' }}
-                        {% if player.minutes %}| Min: {{ player.minutes }}{% endif %}
-                        {% if player.goals_scored or player.assists %}
-                            | G: {{ player.goals_scored or 0 }} A: {{ player.assists or 0 }}
-                        {% endif %}
-                    </div>
-                </div>
-
-                <form method="POST" action="{{ url_for('add_to_wishlist', team_id=team.id, player_id=player.id) }}" style="display: inline;">
-                    <button type="submit" class="btn" style="padding: 5px 10px; font-size: 12px;">+</button>
-                </form>
-            </div>
-            {% endfor %}
-        </div>
     </div>
 </div>
-
-<div style="margin-top: 20px;">
-    <a href="{{ url_for('view_team', team_id=team.id) }}" class="btn">Back to Team</a>
-    <a href="{{ url_for('draft') }}" class="btn">Back to Draft</a>
-</div>
-
-<!-- WebSocket for real-time updates -->
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-<script>
-    // Connect to WebSocket
-    const socket = io();
-    const currentTeamId = {{ team.id }};
-
-    // Listen for any player being drafted
-    socket.on('player_drafted', function(data) {
-        // Check if this player is in our wishlist
-        const wishlistItem = document.querySelector(`[data-player-id="${data.player_id}"]`);
-        if (wishlistItem) {
-            // Mark as drafted
-            wishlistItem.style.backgroundColor = '#ffebee';
-            wishlistItem.style.opacity = '0.6';
-
-            // Add drafted indicator
-            const nameElement = wishlistItem.querySelector('strong');
-            if (!nameElement.textContent.includes('[DRAFTED]')) {
-                nameElement.innerHTML += ' <span style="color: red; font-weight: bold;">[DRAFTED]</span>';
-            }
-
-            // Show notification
-            showNotification(`❌ ${data.player_name} was drafted by ${data.team_name}`, 'warning');
-        }
-    });
-
-    // Listen for wishlist-specific notifications
-    socket.on('wishlist_player_drafted', function(data) {
-        // Check if we're one of the affected teams
-        const affected = data.affected_teams.find(team => team.team_id === currentTeamId);
-        if (affected) {
-            // Show special notification for high-priority players
-            if (affected.rank <= 5) {
-                showNotification(
-                    `🚨 Your #${affected.rank} wishlist player ${data.player_name} was drafted by ${data.drafted_by}!`,
-                    'error',
-                    5000  // Show for longer
-                );
-            }
-        }
-    });
-
-    // Function to show notifications
-    function showNotification(message, type = 'info', duration = 3000) {
-        const notification = document.createElement('div');
-        const colors = {
-            'info': '#2196F3',
-            'warning': '#ff9800',
-            'error': '#f44336',
-            'success': '#4CAF50'
-        };
-
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: ${colors[type]};
-            color: white;
-            padding: 15px 20px;
-            border-radius: 4px;
-            z-index: 1000;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            animation: slideIn 0.3s ease-out;
-            max-width: 300px;
-        `;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-
-        // Remove notification after duration
-        setTimeout(() => {
-            notification.style.animation = 'slideOut 0.3s ease-out';
-            setTimeout(() => notification.remove(), 300);
-        }, duration);
-    }
-
-    // Add CSS animations
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes slideOut {
-            from { transform: translateX(0); opacity: 1; }
-            to { transform: translateX(100%); opacity: 0; }
-        }
-    `;
-    document.head.appendChild(style);
-
-    // Enhanced search functionality
-    document.getElementById('playerSearch').addEventListener('input', function(e) {
-        const searchTerm = e.target.value.toLowerCase();
-        const players = document.querySelectorAll('.player-option');
-
-        players.forEach(player => {
-            const name = player.dataset.name;
-            const team = player.dataset.team;
-            const match = name.includes(searchTerm) || team.includes(searchTerm);
-            player.style.display = match ? 'flex' : 'none';
-        });
-    });
-
-    // Drag and drop functionality
-    let draggedElement = null;
-
-    document.querySelectorAll('.wishlist-item').forEach(item => {
-        item.draggable = true;
-
-        item.addEventListener('dragstart', function(e) {
-            draggedElement = this;
-            this.style.opacity = '0.5';
-        });
-
-        item.addEventListener('dragend', function(e) {
-            this.style.opacity = '';
-        });
-
-        item.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            this.style.borderTop = '3px solid #38003c';
-        });
-
-        item.addEventListener('dragleave', function(e) {
-            this.style.borderTop = '';
-        });
-
-        item.addEventListener('drop', function(e) {
-            e.preventDefault();
-            this.style.borderTop = '';
-
-            if (this !== draggedElement) {
-                const wishlist = document.getElementById('wishlist');
-                wishlist.insertBefore(draggedElement, this);
-
-                // Update order in database
-                const items = document.querySelectorAll('.wishlist-item');
-                const newOrder = Array.from(items).map(item => parseInt(item.dataset.playerId));
-
-                fetch(`/team/{{ team.id }}/wishlist/reorder`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({order: newOrder})
-                });
-
-                // Update rank numbers
-                items.forEach((item, index) => {
-                    const rankElement = item.querySelector('strong');
-                    rankElement.textContent = rankElement.textContent.replace(/^#\d+\./, `#${index + 1}.`);
-                });
-            }
-        });
-    });
-
-    // Update the visual state of drafted players on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        const draftedPlayers = document.querySelectorAll('.wishlist-item');
-        draftedPlayers.forEach(item => {
-            if (item.textContent.includes('[DRAFTED]')) {
-                item.style.backgroundColor = '#ffebee';
-                item.style.opacity = '0.6';
-            }
-        });
-    });
-</script>
-{% endblock %}
