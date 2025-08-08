@@ -276,9 +276,10 @@ def draft():
 
     teams = DraftTeam.query.all()
 
-    # Get sorting preference from URL parameters
+    # Get sorting and filtering preferences from URL parameters
     sort_by = request.args.get('sort', 'total_points')
     position_filter = request.args.get('position', 'all')
+    team_filter = request.args.get('team', 'all')  # NEW: Team filter
 
     # Build query for available players
     query = Player.query.filter_by(drafted=False)
@@ -286,6 +287,10 @@ def draft():
     # Apply position filter
     if position_filter != 'all':
         query = query.filter_by(position=position_filter)
+
+    # Apply team filter (NEW)
+    if team_filter != 'all':
+        query = query.filter_by(team=team_filter)
 
     # Apply sorting
     from sqlalchemy import desc, nullslast
@@ -316,13 +321,15 @@ def draft():
     # Create draft order display
     draft_order_ids = json.loads(draft.draft_order)
     if draft.is_reverse_round:
-        # Show reversed order for even rounds
         display_order = list(reversed(draft_order_ids))
     else:
         display_order = draft_order_ids
 
     # Get team objects in display order
     display_teams = [DraftTeam.query.get(team_id) for team_id in display_order]
+
+    # NEW: Get draft history
+    draft_history = get_draft_history()
 
     return render_template('draft.html',
                            draft=draft,
@@ -331,14 +338,62 @@ def draft():
                            current_team=current_team,
                            current_sort=sort_by,
                            current_position=position_filter,
+                           current_team_filter=team_filter,  # NEW
                            display_teams=display_teams,
                            current_round=draft.current_round,
-                           is_reverse_round=draft.is_reverse_round)
+                           is_reverse_round=draft.is_reverse_round,
+                           draft_history=draft_history)  # NEW
+
+
+def get_draft_history():
+    """Get the history of all drafted players in order"""
+    # Query all drafted players with their draft teams
+    drafted_players = Player.query.filter(
+        Player.drafted == True
+    ).join(
+        DraftTeam, Player.drafted_by == DraftTeam.id
+    ).order_by(
+        Player.id  # Assuming players are drafted in ID order
+    ).all()
+
+    history = []
+    for idx, player in enumerate(drafted_players, 1):
+        history.append({
+            'pick': idx,
+            'player_name': player.name,
+            'player_position': player.position,
+            'player_team': player.team,
+            'team_name': player.draft_team.name if player.draft_team else 'Unknown'
+        })
+
+    return history
+
+
+@app.route('/api/team/<int:team_id>/formation')
+def api_team_formation(team_id):
+    """API endpoint to get team formation HTML"""
+    team = DraftTeam.query.get_or_404(team_id)
+    roster = team.get_roster()
+
+    # Render the formation template
+    html = render_template('team_formation.html', team=team, roster=roster)
+
+    return jsonify({
+        'success': True,
+        'html': html,
+        'team_name': team.name
+    })
 
 
 @app.route('/draft_player/<int:player_id>', methods=['POST'])
 def draft_player(player_id):
     draft = Draft.query.first()
+
+    # Check if draft is locked
+    if getattr(draft, 'is_locked', False):
+        flash('Draft is currently locked. Wait for draft night!', 'error')
+        return redirect(url_for('draft'))
+
     if not draft or not draft.is_active:
         return jsonify({'error': 'No active draft'}), 400
 
@@ -353,8 +408,6 @@ def draft_player(player_id):
     # CHECK DRAFT CONSTRAINTS
     can_draft, reason = current_team.can_draft_player(player)
     if not can_draft:
-        # Flash message and redirect back
-        from flask import flash
         flash(f"Cannot draft {player.name}: {reason}", 'error')
         return redirect(url_for('draft'))
 
@@ -362,40 +415,28 @@ def draft_player(player_id):
     player.drafted = True
     player.drafted_by = current_team.id
 
-    # Check which teams had this player on their wishlist
-    wishlist_entries = Wishlist.query.filter_by(player_id=player_id).all()
-    affected_teams = []
-    for entry in wishlist_entries:
-        if entry.team_id != current_team_id:
-            affected_teams.append({
-                'team_id': entry.team_id,
-                'team_name': entry.team.name,
-                'rank': entry.rank
-            })
-
     # Advance to next pick
     draft.advance_to_next_pick()
 
     db.session.commit()
 
-    # Emit updates
-    #socketio.emit('player_drafted', {
-    #    'player_name': player.name,
-    #    'player_id': player.id,
-    #    'team_name': current_team.name,
-    #    'next_team_id': draft.get_current_team_id()
-    #})
-
-    #if affected_teams:
-    #    socketio.emit('wishlist_player_drafted', {
-    #        'player_name': player.name,
-    #        'player_id': player.id,
-    #        'drafted_by': current_team.name,
-    #        'affected_teams': affected_teams
-    #    })
+    # Log the draft pick (optional - for persistent history)
+    # You could add a DraftHistory model if you want to persist this
 
     return redirect(url_for('draft'))
 
+
+@app.route('/team/<int:team_id>/formation')
+def team_formation_page(team_id):
+    """Full page view of team formation"""
+    team = DraftTeam.query.get_or_404(team_id)
+    roster = team.get_roster()
+    draft = Draft.query.first()
+
+    return render_template('team_formation_page.html',
+                           team=team,
+                           roster=roster,
+                           draft=draft)
 
 @app.route('/team/<int:team_id>/wishlist')
 def team_wishlist(team_id):

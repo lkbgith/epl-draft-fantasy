@@ -11,6 +11,11 @@
         🐍 <em>Snake draft - Round {{ current_round }} goes in reverse order!</em>
     </div>
     {% endif %}
+
+    <!-- Refresh button for mobile users -->
+    <button onclick="location.reload()" class="btn" style="margin-top: 10px; background-color: #4CAF50;">
+        🔄 Refresh Page
+    </button>
 </div>
 
 <!-- Flash Messages for Errors -->
@@ -24,28 +29,6 @@
     {% endif %}
 {% endwith %}
 
-<!-- Draft Constraints Display -->
-<div style="background-color: #e8f5e9; padding: 15px; margin: 15px 0; border-radius: 4px;">
-    <h4 style="margin: 0 0 10px 0;">📋 Draft Rules</h4>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 14px;">
-        <div>
-            <strong>Squad Requirements:</strong>
-            <ul style="margin: 5px 0;">
-                <li>2 Goalkeepers (GK)</li>
-                <li>5 Defenders (DEF)</li>
-                <li>5 Midfielders (MID)</li>
-                <li>3 Forwards (FWD)</li>
-            </ul>
-        </div>
-        <div>
-            <strong>Team Limit:</strong>
-            <ul style="margin: 5px 0;">
-                <li>Maximum 3 players from any single team</li>
-            </ul>
-        </div>
-    </div>
-</div>
-
 <!-- Current Team's Progress -->
 <div style="background-color: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 4px;">
     <h4 style="margin: 0 0 10px 0;">{{ current_team.name }}'s Progress</h4>
@@ -57,6 +40,11 @@
         <span class="position-badge position-DEF" style="margin-left: 10px;">DEF: {{ roster['DEF']|length }}/5</span>
         <span class="position-badge position-MID" style="margin-left: 10px;">MID: {{ roster['MID']|length }}/5</span>
         <span class="position-badge position-FWD" style="margin-left: 10px;">FWD: {{ roster['FWD']|length }}/3</span>
+
+        <!-- Quick view team button -->
+        <button onclick="showTeamFormation({{ current_team.id }})" class="btn" style="margin-left: 20px; padding: 5px 10px; font-size: 12px;">
+            ⚽ View Formation
+        </button>
     </div>
 
     <!-- Team counts (only show teams with 2+ players) -->
@@ -78,96 +66,155 @@
     <div style="flex: 2;">
         <h3>Available Players</h3>
 
-<div style="margin: 10px 0; padding: 10px; background-color: #f5f5f5; border-radius: 4px;">
-    <label style="margin-right: 10px;">Sort by:</label>
-    <select onchange="window.location.href='{{ url_for('draft') }}?sort=' + this.value + '&position={{ current_position }}'">
-        <option value="total_points" {% if current_sort =='total_points' %}selected{% endif %}>Total Points</option>
-        <option value="points_per_game" {% if current_sort =='points_per_game' %}selected{% endif %}>Points Per Game</option>
-        <option value="now_cost" {% if current_sort =='now_cost' %}selected{% endif %}>Price</option>
-        <option value="goals_scored" {% if current_sort =='goals_scored' %}selected{% endif %}>Goals</option>
-        <option value="assists" {% if current_sort =='assists' %}selected{% endif %}>Assists</option>
-        <option value="minutes" {% if current_sort =='minutes' %}selected{% endif %}>Minutes</option>
-        <option value="name" {% if current_sort =='name' %}selected{% endif %}>Name</option>
-    </select>
-</div>
+        <!-- Enhanced Filter Controls -->
+        <div style="margin: 10px 0; padding: 10px; background-color: #f5f5f5; border-radius: 4px;">
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <!-- Sort dropdown -->
+                <div>
+                    <label style="margin-right: 5px; font-size: 12px;">Sort:</label>
+                    <select id="sortSelect" onchange="applyFilters()" style="padding: 5px;">
+                        <option value="total_points" {% if current_sort =='total_points' %}selected{% endif %}>Total Points</option>
+                        <option value="points_per_game" {% if current_sort =='points_per_game' %}selected{% endif %}>Points Per Game</option>
+                        <option value="now_cost" {% if current_sort =='now_cost' %}selected{% endif %}>Price</option>
+                        <option value="goals_scored" {% if current_sort =='goals_scored' %}selected{% endif %}>Goals</option>
+                        <option value="assists" {% if current_sort =='assists' %}selected{% endif %}>Assists</option>
+                        <option value="minutes" {% if current_sort =='minutes' %}selected{% endif %}>Minutes</option>
+                        <option value="name" {% if current_sort =='name' %}selected{% endif %}>Name</option>
+                    </select>
+                </div>
 
+                <!-- Team filter dropdown -->
+                <div>
+                    <label style="margin-right: 5px; font-size: 12px;">Team:</label>
+                    <select id="teamFilter" onchange="filterByTeam()" style="padding: 5px;">
+                        <option value="all">All Teams</option>
+                        {% set teams = available_players | map(attribute='team') | unique | sort %}
+                        {% for team in teams %}
+                            <option value="{{ team }}" {% if current_team_filter == team %}selected{% endif %}>{{ team }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Position Filter Buttons -->
         <div class="filter-buttons" style="margin: 10px 0;">
-            <button onclick="filterPlayers('all')" class="btn">All</button>
-            <button onclick="filterPlayers('GK')" class="btn">GK</button>
-            <button onclick="filterPlayers('DEF')" class="btn">DEF</button>
-            <button onclick="filterPlayers('MID')" class="btn">MID</button>
-            <button onclick="filterPlayers('FWD')" class="btn">FWD</button>
+            <button onclick="filterPlayers('all')" class="btn position-filter active" data-position="all">All</button>
+            <button onclick="filterPlayers('GK')" class="btn position-filter" data-position="GK">GK</button>
+            <button onclick="filterPlayers('DEF')" class="btn position-filter" data-position="DEF">DEF</button>
+            <button onclick="filterPlayers('MID')" class="btn position-filter" data-position="MID">MID</button>
+            <button onclick="filterPlayers('FWD')" class="btn position-filter" data-position="FWD">FWD</button>
         </div>
 
-
-        <div class="player-list">
+        <!-- Player List -->
+        <div class="player-list" style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
             {% for player in available_players %}
-<div class="player-card" data-position="{{ player.position }}" style="padding: 15px;">
-    <div style="flex: 1;">
-        <strong>{{ player.name }}</strong>
-        <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
-        <span style="color: #666;">{{ player.team }}</span>
+            <div class="player-card" data-position="{{ player.position }}" data-team="{{ player.team }}" style="padding: 15px; display: flex;">
+                <div style="flex: 1;">
+                    <strong>{{ player.name }}</strong>
+                    <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
+                    <span style="color: #666;">{{ player.team }}</span>
 
-        <div style="font-size: 12px; color: #666; margin-top: 5px;">
-            <span>Points: {{ player.total_points if player.total_points else "N/A" }}</span>
-            <span style="margin-left: 10px;">PPG: {{ "%.1f"|format(player.points_per_game) if player.points_per_game else "N/A" }}</span>
-            <span style="margin-left: 10px;">Min: {{ player.minutes if player.minutes else "N/A" }}</span>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        <span>Points: {{ player.total_points if player.total_points else "N/A" }}</span>
+                        <span style="margin-left: 10px;">PPG: {{ "%.1f"|format(player.points_per_game) if player.points_per_game else "N/A" }}</span>
+                        <span style="margin-left: 10px;">Min: {{ player.minutes if player.minutes else "N/A" }}</span>
 
-            {% if player.position in ['FWD', 'MID'] %}
-                <span style="margin-left: 10px;">G: {{ player.goals_scored if player.goals_scored is not none else 0 }} A: {{ player.assists if player.assists is not none else 0 }}</span>
-            {% elif player.position in ['DEF', 'GK'] %}
-                <span style="margin-left: 10px;">CS: {{ player.clean_sheets if player.clean_sheets is not none else 0 }}</span>
-            {% endif %}
+                        {% if player.position in ['FWD', 'MID'] %}
+                            <span style="margin-left: 10px;">G: {{ player.goals_scored if player.goals_scored is not none else 0 }} A: {{ player.assists if player.assists is not none else 0 }}</span>
+                        {% elif player.position in ['DEF', 'GK'] %}
+                            <span style="margin-left: 10px;">CS: {{ player.clean_sheets if player.clean_sheets is not none else 0 }}</span>
+                        {% endif %}
 
-            {% if player.now_cost %}
-                <span style="margin-left: 10px;">£{{ "%.1f"|format(player.now_cost) }}m</span>
-            {% else %}
-                <span style="margin-left: 10px;">£N/A</span>
-            {% endif %}
-        </div>
-    </div>
-    <form method="POST" action="{{ url_for('draft_player', player_id=player.id) }}" style="display: inline;">
-        <button type="submit" class="btn">Draft</button>
-    </form>
-</div>
+                        {% if player.now_cost %}
+                            <span style="margin-left: 10px;">£{{ "%.1f"|format(player.now_cost) }}m</span>
+                        {% else %}
+                            <span style="margin-left: 10px;">£N/A</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <form method="POST" action="{{ url_for('draft_player', player_id=player.id) }}" style="display: inline;">
+                    <button type="submit" class="btn">Draft</button>
+                </form>
+            </div>
             {% endfor %}
         </div>
     </div>
 
-<div style="flex: 1;">
-    <h3>Draft Order {% if is_reverse_round %}(Reversed - Round {{ current_round }}){% endif %}</h3>
+    <div style="flex: 1;">
+        <!-- Draft Order Section -->
+        <h3>Draft Order {% if is_reverse_round %}(Reversed - Round {{ current_round }}){% endif %}</h3>
 
-    <div style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
-        {% if is_reverse_round %}
-            <span style="font-size: 20px;">🐍 ← </span>
-        {% else %}
-            <span style="font-size: 20px;">🐍 → </span>
-        {% endif %}
-        <span style="font-size: 12px; color: #666;">Snake Draft Active</span>
-    </div>
+        <div style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+            {% if is_reverse_round %}
+                <span style="font-size: 20px;">🐍 ← </span>
+            {% else %}
+                <span style="font-size: 20px;">🐍 → </span>
+            {% endif %}
+            <span style="font-size: 12px; color: #666;">Snake Draft Active</span>
+        </div>
 
-    <ol>
-        {% for team in display_teams %}
-        <li {% if team.id == current_team.id %}style="font-weight: bold; color: #38003c; background-color: #e3f2fd; padding: 5px; margin: -5px;"{% endif %}>
-            {{ team.name }} ({{ team.players|length }} players)
-        </li>
-        {% endfor %}
-    </ol>
+        <ol style="margin-bottom: 20px;">
+            {% for team in display_teams %}
+            <li {% if team.id == current_team.id %}style="font-weight: bold; color: #38003c; background-color: #e3f2fd; padding: 5px; margin: -5px;"{% endif %}>
+                {{ team.name }} ({{ team.players|length }})
+                <button onclick="showTeamFormation({{ team.id }})" style="font-size: 10px; padding: 2px 5px; margin-left: 5px;">⚽</button>
+            </li>
+            {% endfor %}
+        </ol>
 
-    <div style="margin-top: 10px; font-size: 12px; color: #666;">
-        <strong>Upcoming picks:</strong><br>
-        {% if is_reverse_round %}
-            After this round: Order reverses back →
-        {% else %}
-            After this round: Order reverses ←
-        {% endif %}
+        <!-- Draft Log Section -->
+        <h3>Draft Log</h3>
+        <div id="draftLog" style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 300px; overflow-y: auto; font-size: 12px;">
+            {% if draft_history %}
+                {% for entry in draft_history %}
+                <div style="margin: 5px 0; padding: 5px; background: white; border-radius: 3px;">
+                    <strong>Pick #{{ entry.pick }}:</strong> {{ entry.team_name }} drafted
+                    <span class="position-badge position-{{ entry.player_position }}" style="font-size: 10px;">{{ entry.player_position }}</span>
+                    <strong>{{ entry.player_name }}</strong> ({{ entry.player_team }})
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color: #666; text-align: center;">No players drafted yet</p>
+            {% endif %}
+        </div>
+
+        <!-- Mobile Refresh Reminder -->
+        <div style="margin-top: 20px; padding: 10px; background-color: #e8f5e9; border-radius: 4px; text-align: center;">
+            <p style="margin: 0; font-size: 12px;">📱 On mobile? Refresh to see latest picks</p>
+            <button onclick="location.reload()" class="btn" style="margin-top: 5px; font-size: 12px; padding: 5px 10px;">
+                🔄 Refresh Now
+            </button>
+        </div>
     </div>
 </div>
+
+<!-- Team Formation Modal -->
+<div id="formationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000;">
+    <div style="position: relative; width: 90%; max-width: 800px; margin: 50px auto; background: white; border-radius: 10px; padding: 20px;">
+        <button onclick="closeFormation()" style="position: absolute; right: 10px; top: 10px; background: red; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">✕ Close</button>
+        <div id="formationContent"></div>
+    </div>
 </div>
 
 <script>
+// Position filter
 function filterPlayers(position) {
     const players = document.querySelectorAll('.player-card');
+    const buttons = document.querySelectorAll('.position-filter');
+
+    // Update active button
+    buttons.forEach(btn => {
+        if (btn.dataset.position === position) {
+            btn.classList.add('active');
+            btn.style.backgroundColor = '#2d0030';
+        } else {
+            btn.classList.remove('active');
+            btn.style.backgroundColor = '#38003c';
+        }
+    });
+
+    // Filter players
     players.forEach(player => {
         if (position === 'all' || player.dataset.position === position) {
             player.style.display = 'flex';
@@ -176,32 +223,62 @@ function filterPlayers(position) {
         }
     });
 }
+
+// Team filter
+function filterByTeam() {
+    const selectedTeam = document.getElementById('teamFilter').value;
+    const players = document.querySelectorAll('.player-card');
+
+    players.forEach(player => {
+        if (selectedTeam === 'all' || player.dataset.team === selectedTeam) {
+            if (player.style.display !== 'none') { // Respect position filter
+                player.style.display = 'flex';
+            }
+        } else {
+            player.style.display = 'none';
+        }
+    });
+}
+
+// Apply all filters
+function applyFilters() {
+    const sort = document.getElementById('sortSelect').value;
+    const position = '{{ current_position }}';
+    const team = document.getElementById('teamFilter').value;
+
+    window.location.href = `{{ url_for('draft') }}?sort=${sort}&position=${position}&team=${team}`;
+}
+
+// Show team formation
+function showTeamFormation(teamId) {
+    fetch(`/api/team/${teamId}/formation`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('formationContent').innerHTML = data.html;
+            document.getElementById('formationModal').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Could not load team formation');
+        });
+}
+
+// Close formation modal
+function closeFormation() {
+    document.getElementById('formationModal').style.display = 'none';
+}
+
+// Auto-refresh for mobile (optional - every 30 seconds)
+if (window.innerWidth <= 768) {
+    setInterval(() => {
+        location.reload();
+    }, 30000);
+}
 </script>
 
-
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-<script>
-    // Connect to WebSocket
-    const socket = io();
-
-    // Listen for draft updates
-    socket.on('player_drafted', function(data) {
-        // Show notification
-        const notification = document.createElement('div');
-        notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; padding: 15px; border-radius: 4px; z-index: 1000;';
-        notification.textContent = `${data.player_name} drafted by ${data.team_name}!`;
-        document.body.appendChild(notification);
-
-        // Remove notification after 3 seconds
-        setTimeout(() => notification.remove(), 3000);
-
-        // Refresh page after short delay
-        setTimeout(() => location.reload(), 1000);
-    });
-
-    // Optional: Show connection status
-    socket.on('connect', function() {
-        console.log('Connected to draft updates!');
-    });
-</script>
+<style>
+.position-filter.active {
+    background-color: #2d0030 !important;
+}
+</style>
 {% endblock %}

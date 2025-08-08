@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="text-align: center; margin-bottom: 20px;">
+    <h2>{{ team.name }}'s Squad Formation</h2>
+    <p style="color: #666;">Manager: {{ team.owner }}</p>
+</div>
+
+<!-- Soccer Field Visualization -->
+<div style="position: relative; width: 100%; max-width: 700px; margin: 20px auto; background: linear-gradient(to bottom, #4CAF50 0%, #45a049 50%, #4CAF50 100%); border-radius: 10px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+    
+    <!-- Field markings -->
+    <div style="position: absolute; top: 50%; left: 10%; right: 10%; height: 2px; background: rgba(255,255,255,0.3);"></div>
+    <div style="position: absolute; top: 50%; left: 50%; transform: translateX(-50%); width: 120px; height: 120px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%;"></div>
+    
+    <!-- Penalty areas -->
+    <div style="position: absolute; bottom: 0; left: 25%; right: 25%; height: 100px; border: 2px solid rgba(255,255,255,0.3); border-bottom: none; border-radius: 10px 10px 0 0;"></div>
+    <div style="position: absolute; top: 0; left: 25%; right: 25%; height: 100px; border: 2px solid rgba(255,255,255,0.3); border-top: none; border-radius: 0 0 10px 10px;"></div>
+    
+    <!-- Goal areas -->
+    <div style="position: absolute; bottom: 0; left: 35%; right: 35%; height: 40px; border: 2px solid rgba(255,255,255,0.3); border-bottom: none;"></div>
+    <div style="position: absolute; top: 0; left: 35%; right: 35%; height: 40px; border: 2px solid rgba(255,255,255,0.3); border-top: none;"></div>
+    
+    <!-- Players Container -->
+    <div style="position: relative; height: 500px;">
+        
+        <!-- Goalkeepers (Bottom) -->
+        <div style="position: absolute; bottom: 20px; left: 0; right: 0; text-align: center;">
+            {% for player in roster['GK'] %}
+            <div style="display: inline-block; margin: 0 20px; text-align: center;">
+                <div style="width: 70px; height: 70px; background: #ff6b6b; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; box-shadow: 0 3px 6px rgba(0,0,0,0.4); margin: 0 auto; border: 3px solid white;">
+                    GK
+                </div>
+                <div style="margin-top: 5px; font-size: 12px; color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); max-width: 100px;">
+                    <strong>{{ player.web_name or player.second_name }}</strong><br>
+                    <span style="font-size: 10px;">{{ player.team }}</span>
+                    {% if player.total_points %}
+                    <br><span style="font-size: 10px;">{{ player.total_points }} pts</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% for i in range(2 - roster['GK']|length) %}
+            <div style="display: inline-block; margin: 0 20px;">
+                <div style="width: 70px; height: 70px; border: 3px dashed rgba(255,255,255,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.7); font-size: 14px;">
+                    GK
+                </div>
+                <div style="margin-top: 5px; font-size: 12px; color: rgba(255,255,255,0.7);">Empty Slot</div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Defenders (Lower middle) -->
+        <div style="position: absolute; bottom: 130px; left: 0; right: 0; text-align: center;">
+            {% for player in roster['DEF'] %}
+            <div style="display: inline-block; margin: 0 10px; text-align: center;">
+                <div style="width: 65px; height: 65px; background: #4ecdc4; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 13px; box-shadow: 0 3px 6px rgba(0,0,0,0.4); margin: 0 auto; border: 3px solid white;">
+                    DEF
+                </div>
+                <div style="margin-top: 5px; font-size: 11px; color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); max-width: 90px;">
+                    <strong>{{ player.web_name or player.second_name }}</strong><br>
+                    <span style="font-size: 10px;">{{ player.team }}</span>
+                    {% if player.total_points %}
+                    <br><span style="font-size: 10px;">{{ player.total_points }} pts</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% for i in range(5 - roster['DEF']|length) %}
+            <div style="display: inline-block; margin: 0 10px;">
+                <div style="width: 65px; height: 65px; border: 3px dashed rgba(255,255,255,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.7); font-size: 13px;">
+                    DEF
+                </div>
+                <div style="margin-top: 5px; font-size: 11px; color: rgba(255,255,255,0.7);">Empty Slot</div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Midfielders (Middle) -->
+        <div style="position: absolute; top: 50%; transform: translateY(-50%); left: 0; right: 0; text-align: center;">
+            {% for player in roster['MID'] %}
+            <div style="display: inline-block; margin: 0 10px; text-align: center;">
+                <div style="width: 65px; height: 65px; background: #45b7d1; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 13px; box-shadow: 0 3px 6px rgba(0,0,0,0.4); margin: 0 auto; border: 3px solid white;">
+                    MID
+                </div>
+                <div style="margin-top: 5px; font-size: 11px; color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); max-width: 90px;">
+                    <strong>{{ player.web_name or player.second_name }}</strong><br>
+                    <span style="font-size: 10px;">{{ player.team }}</span>
+                    {% if player.total_points %}
+                    <br><span style="font-size: 10px;">{{ player.total_points }} pts</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% for i in range(5 - roster['MID']|length) %}
+            <div style="display: inline-block; margin: 0 10px;">
+                <div style="width: 65px; height: 65px; border: 3px dashed rgba(255,255,255,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.7); font-size: 13px;">
+                    MID
+                </div>
+                <div style="margin-top: 5px; font-size: 11px; color: rgba(255,255,255,0.7);">Empty Slot</div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Forwards (Top) -->
+        <div style="position: absolute; top: 20px; left: 0; right: 0; text-align: center;">
+            {% for player in roster['FWD'] %}
+            <div style="display: inline-block; margin: 0 20px; text-align: center;">
+                <div style="width: 70px; height: 70px; background: #96ceb4; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; box-shadow: 0 3px 6px rgba(0,0,0,0.4); margin: 0 auto; border: 3px solid white;">
+                    FWD
+                </div>
+                <div style="margin-top: 5px; font-size: 12px; color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); max-width: 100px;">
+                    <strong>{{ player.web_name or player.second_name }}</strong><br>
+                    <span style="font-size: 10px;">{{ player.team }}</span>
+                    {% if player.total_points %}
+                    <br><span style="font-size: 10px;">{{ player.total_points }} pts</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% for i in range(3 - roster['FWD']|length) %}
+            <div style="display: inline-block; margin: 0 20px;">
+                <div style="width: 70px; height: 70px; border: 3px dashed rgba(255,255,255,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.7); font-size: 14px;">
+                    FWD
+                </div>
+                <div style="margin-top: 5px; font-size: 12px; color: rgba(255,255,255,0.7);">Empty Slot</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Squad Details -->
+<div style="margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 900px; margin: 30px auto;">
+    
+    <!-- Squad List -->
+    <div style="background: #f5f5f5; padding: 20px; border-radius: 10px;">
+        <h3>Squad List</h3>
+        
+        {% for position in ['GK', 'DEF', 'MID', 'FWD'] %}
+        <div style="margin-bottom: 15px;">
+            <h4 class="position-badge position-{{ position }}" style="display: inline-block; margin-bottom: 10px;">
+                {{ position }} ({{ roster[position]|length }}/{% if position == 'GK' %}2{% elif position == 'FWD' %}3{% else %}5{% endif %})
+            </h4>
+            {% if roster[position] %}
+                <ul style="list-style: none; padding: 0;">
+                {% for player in roster[position] %}
+                    <li style="padding: 5px 0; border-bottom: 1px solid #ddd;">
+                        <strong>{{ player.name }}</strong> - {{ player.team }}
+                        {% if player.total_points %}
+                            <span style="float: right; color: #666;">{{ player.total_points }} pts</span>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p style="color: #999; font-style: italic;">No players drafted</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Team Statistics -->
+    <div style="background: #f5f5f5; padding: 20px; border-radius: 10px;">
+        <h3>Team Statistics</h3>
+        
+        <div style="margin-bottom: 20px;">
+            <h4>Squad Progress</h4>
+            <div style="background: #ddd; height: 30px; border-radius: 15px; overflow: hidden;">
+                {% set total_players = roster['GK']|length + roster['DEF']|length + roster['MID']|length + roster['FWD']|length %}
+                <div style="background: linear-gradient(to right, #4CAF50, #45a049); height: 100%; width: {{ (total_players / 15 * 100)|round }}%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                    {{ total_players }}/15
+                </div>
+            </div>
+        </div>
+        
+        {% if total_players > 0 %}
+        <div style="margin-bottom: 20px;">
+            <h4>Total Points</h4>
+            {% set total_points = roster['GK'] | selectattr('total_points') | sum(attribute='total_points') + 
+                                 roster['DEF'] | selectattr('total_points') | sum(attribute='total_points') + 
+                                 roster['MID'] | selectattr('total_points') | sum(attribute='total_points') + 
+                                 roster['FWD'] | selectattr('total_points') | sum(attribute='total_points') %}
+            <p style="font-size: 24px; font-weight: bold; color: #38003c;">{{ total_points }} points</p>
+        </div>
+        {% endif %}
+        
+        <div>
+            <h4>Team Composition</h4>
+            {% set team_counts = {} %}
+            {% for position in ['GK', 'DEF', 'MID', 'FWD'] %}
+                {% for player in roster[position] %}
+                    {% set _ = team_counts.update({player.team: team_counts.get(player.team, 0) + 1}) %}
+                {% endfor %}
+            {% endfor %}
+            
+            {% if team_counts %}
+                <ul style="list-style: none; padding: 0;">
+                {% for team, count in team_counts.items() | sort(attribute=1, reverse=true) %}
+                    <li style="padding: 5px 0;">
+                        {{ team }}: 
+                        <span style="font-weight: bold; {% if count >= 3 %}color: #d32f2f;{% endif %}">
+                            {{ count }} player{% if count != 1 %}s{% endif %}
+                        </span>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p style="color: #999;">No players drafted yet</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Navigation -->
+<div style="text-align: center; margin-top: 30px;">
+    <a href="{{ url_for('view_team', team_id=team.id) }}" class="btn">Back to Team Page</a>
+    {% if draft and draft.is_active %}
+        <a href="{{ url_for('draft') }}" class="btn" style="margin-left: 10px;">Back to Draft</a>
+    {% endif %}
+    <a href="{{ url_for('index') }}" class="btn" style="margin-left: 10px;">Home</a>
+</div>
+
+{% endblock %}
