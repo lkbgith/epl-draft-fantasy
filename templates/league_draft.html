@@ -1,0 +1,189 @@
+<!-- templates/league_draft.html -->
+{% extends "base.html" %}
+{% block content %}
+
+<!-- League Header -->
+<div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <h2 style="margin: 0;">{{ league.name }} - Draft Room</h2>
+    <p style="margin: 5px 0 0 0; color: #666;">Access Code: {{ league.access_code }}</p>
+</div>
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div style="background-color: #ffebee; color: #d32f2f; padding: 15px; margin: 10px 0; border-radius: 4px; border: 1px solid #f44336;">
+                <strong>⚠️ {{ message }}</strong>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<!-- Current Pick Info -->
+<div class="current-pick" style="background-color: #e3f2fd; padding: 20px; margin: 20px 0; border-radius: 4px;">
+    <h3>Round {{ current_round }}, Pick #{{ draft.current_pick }}</h3>
+    <h4>{{ current_team.name }} ({{ current_team.owner }}) is on the clock!</h4>
+
+    {% if is_reverse_round %}
+    <div style="margin-top: 10px; font-size: 14px; color: #666;">
+        🐍 <em>Snake draft - Round {{ current_round }} goes in reverse order!</em>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Draft Constraints Display -->
+<div style="background-color: #e8f5e9; padding: 15px; margin: 15px 0; border-radius: 4px;">
+    <h4 style="margin: 0 0 10px 0;">📋 Draft Rules</h4>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 14px;">
+        <div>
+            <strong>Squad Requirements:</strong>
+            <ul style="margin: 5px 0;">
+                <li>2 Goalkeepers (GK)</li>
+                <li>5 Defenders (DEF)</li>
+                <li>5 Midfielders (MID)</li>
+                <li>3 Forwards (FWD)</li>
+            </ul>
+        </div>
+        <div>
+            <strong>Team Limit:</strong>
+            <ul style="margin: 5px 0;">
+                <li>Maximum 3 players from any single team</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Current Team's Progress -->
+<div style="background-color: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 4px;">
+    <h4 style="margin: 0 0 10px 0;">{{ current_team.name }}'s Progress</h4>
+
+    <!-- Position counts -->
+    <div style="margin-bottom: 10px;">
+        {% set roster = current_team.get_roster() %}
+        <span class="position-badge position-GK">GK: {{ roster['GK']|length }}/2</span>
+        <span class="position-badge position-DEF" style="margin-left: 10px;">DEF: {{ roster['DEF']|length }}/5</span>
+        <span class="position-badge position-MID" style="margin-left: 10px;">MID: {{ roster['MID']|length }}/5</span>
+        <span class="position-badge position-FWD" style="margin-left: 10px;">FWD: {{ roster['FWD']|length }}/3</span>
+    </div>
+
+    <!-- Team counts (only show teams with 2+ players) -->
+    {% set team_counts = current_team.get_team_counts() %}
+    {% if team_counts %}
+        <div style="font-size: 12px; color: #666;">
+            <strong>Players per team:</strong>
+            {% for team, count in team_counts.items() if count >= 2 %}
+                <span style="{% if count >= 3 %}color: #d32f2f; font-weight: bold;{% endif %}">
+                    {{ team }}: {{ count }}/3
+                </span>
+                {% if not loop.last %} | {% endif %}
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+
+<div style="display: flex; gap: 20px;">
+    <div style="flex: 2;">
+        <h3>Available Players</h3>
+
+        <!-- Sort Controls -->
+        <div style="margin: 10px 0; padding: 10px; background-color: #f5f5f5; border-radius: 4px;">
+            <label style="margin-right: 10px;">Sort by:</label>
+            <select onchange="window.location.href='{{ url_for('league_draft', league_id=league.id) }}?sort=' + this.value + '&position={{ current_position }}'">
+                <option value="total_points" {% if current_sort == 'total_points' %}selected{% endif %}>Total Points</option>
+                <option value="points_per_game" {% if current_sort == 'points_per_game' %}selected{% endif %}>Points Per Game</option>
+                <option value="now_cost" {% if current_sort == 'now_cost' %}selected{% endif %}>Price</option>
+                <option value="goals_scored" {% if current_sort == 'goals_scored' %}selected{% endif %}>Goals</option>
+                <option value="assists" {% if current_sort == 'assists' %}selected{% endif %}>Assists</option>
+                <option value="minutes" {% if current_sort == 'minutes' %}selected{% endif %}>Minutes</option>
+                <option value="name" {% if current_sort == 'name' %}selected{% endif %}>Name</option>
+            </select>
+        </div>
+
+        <!-- Position Filter -->
+        <div class="filter-buttons" style="margin-bottom: 10px;">
+            <button onclick="filterPlayers('all')" class="btn">All</button>
+            <button onclick="filterPlayers('GK')" class="btn">GK</button>
+            <button onclick="filterPlayers('DEF')" class="btn">DEF</button>
+            <button onclick="filterPlayers('MID')" class="btn">MID</button>
+            <button onclick="filterPlayers('FWD')" class="btn">FWD</button>
+        </div>
+
+        <!-- Player List -->
+        <div class="player-list">
+            {% for player in available_players %}
+            <div class="player-card" data-position="{{ player.position }}" style="padding: 15px;">
+                <div style="flex: 1;">
+                    <strong>{{ player.name }}</strong>
+                    <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
+                    <span style="color: #666;">{{ player.team }}</span>
+
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        <span>Points: {{ player.total_points if player.total_points else "N/A" }}</span>
+                        <span style="margin-left: 10px;">PPG: {{ "%.1f"|format(player.points_per_game) if player.points_per_game else "N/A" }}</span>
+                        <span style="margin-left: 10px;">Min: {{ player.minutes if player.minutes else "N/A" }}</span>
+
+                        {% if player.position in ['FWD', 'MID'] %}
+                            <span style="margin-left: 10px;">G: {{ player.goals_scored if player.goals_scored is not none else 0 }} A: {{ player.assists if player.assists is not none else 0 }}</span>
+                        {% elif player.position in ['DEF', 'GK'] %}
+                            <span style="margin-left: 10px;">CS: {{ player.clean_sheets if player.clean_sheets is not none else 0 }}</span>
+                        {% endif %}
+
+                        {% if player.now_cost %}
+                            <span style="margin-left: 10px;">£{{ "%.1f"|format(player.now_cost) }}m</span>
+                        {% else %}
+                            <span style="margin-left: 10px;">£N/A</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <form method="POST" action="{{ url_for('draft_player', player_id=player.id) }}" style="display: inline;">
+                    <button type="submit" class="btn">Draft</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div style="flex: 1;">
+        <h3>Draft Order {% if is_reverse_round %}(Reversed - Round {{ current_round }}){% endif %}</h3>
+
+        <div style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+            {% if is_reverse_round %}
+                <span style="font-size: 20px;">🐍 ← </span>
+            {% else %}
+                <span style="font-size: 20px;">🐍 → </span>
+            {% endif %}
+            <span style="font-size: 12px; color: #666;">Snake Draft Active</span>
+        </div>
+
+        <ol>
+            {% for team in display_teams %}
+            <li {% if team.id == current_team.id %}style="font-weight: bold; color: #38003c; background-color: #e3f2fd; padding: 5px; margin: -5px;"{% endif %}>
+                {{ team.name }} ({{ team.players|length }} players)
+            </li>
+            {% endfor %}
+        </ol>
+
+        <div style="margin-top: 10px; font-size: 12px; color: #666;">
+            <strong>Upcoming picks:</strong><br>
+            {% if is_reverse_round %}
+                After this round: Order reverses back →
+            {% else %}
+                After this round: Order reverses ←
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function filterPlayers(position) {
+    const players = document.querySelectorAll('.player-card');
+    players.forEach(player => {
+        if (position === 'all' || player.dataset.position === position) {
+            player.style.display = 'flex';
+        } else {
+            player.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

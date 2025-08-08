@@ -1,0 +1,59 @@
+<!-- templates/leagues.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>All Leagues</h2>
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('create_league') }}" class="btn">🏆 Create New League</a>
+    <a href="{{ url_for('join_league') }}" class="btn" style="margin-left: 10px;">🎯 Join League</a>
+</div>
+
+{% if leagues %}
+    <div style="display: grid; gap: 20px;">
+        {% for league in leagues %}
+        <div style="background-color: #f5f5f5; padding: 20px; border-radius: 10px; border: 1px solid #ddd;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="margin: 0;">{{ league.name }}</h3>
+                    <p style="color: #666; margin: 5px 0;">
+                        Created: {{ league.created_at.strftime('%B %d, %Y') }}
+                    </p>
+                    <p style="margin: 5px 0;">
+                        Teams: {{ league.teams|length }}
+                        {% if league.draft %}
+                            | Draft Status:
+                            {% if league.draft.is_active %}
+                                <span style="color: #4CAF50;">Active (Pick #{{ league.draft.current_pick }})</span>
+                            {% else %}
+                                <span style="color: #666;">Not Started</span>
+                            {% endif %}
+                        {% endif %}
+                    </p>
+                </div>
+
+                <div>
+                    <a href="{{ url_for('league_draft', league_id=league.id) }}" class="btn">
+                        View League
+                    </a>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                <span style="font-family: monospace; background-color: #e3f2fd; padding: 5px 10px; border-radius: 4px;">
+                    Code: {{ league.access_code }}
+                </span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div style="text-align: center; padding: 60px 20px; background-color: #f5f5f5; border-radius: 10px;">
+        <p style="color: #666; margin-bottom: 20px;">No leagues created yet</p>
+        <a href="{{ url_for('create_league') }}" class="btn">Create the First League</a>
+    </div>
+{% endif %}
+
+<div style="margin-top: 30px; text-align: center;">
+    <a href="{{ url_for('index') }}" style="color: #666;">← Back to Home</a>
+</div>
+{% endblock %}

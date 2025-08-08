@@ -1,0 +1,56 @@
+<!-- templates/league_home.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>{{ league.name }}</h2>
+
+<div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <strong>Access Code:</strong>
+    <span style="font-family: monospace; font-size: 18px; letter-spacing: 2px;">{{ league.access_code }}</span>
+    <button onclick="copyCode('{{ league.access_code }}')" style="margin-left: 10px; padding: 5px 10px; font-size: 12px;">📋 Copy</button>
+</div>
+
+{% if draft and draft.is_active %}
+<div class="current-status" style="background-color: #4CAF50; color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+    <h3>Draft in Progress!</h3>
+    <p>Round {{ draft.current_round }}, Pick #{{ draft.current_pick }}</p>
+    <a href="{{ url_for('league_draft', league_id=league.id) }}" class="btn" style="background-color: white; color: #333;">
+        Go to Draft Room
+    </a>
+</div>
+{% endif %}
+
+<h3>Teams in {{ league.name }}</h3>
+{% if teams %}
+    <div class="teams-list">
+        {% for team in teams %}
+        <div class="team-card" style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 4px;">
+            <h4>{{ team.name }}</h4>
+            <p>Manager: {{ team.owner }}</p>
+            <p>Players drafted: {{ team.players|length }}</p>
+            <a href="{{ url_for('view_team', team_id=team.id) }}" class="btn">View Roster</a>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if draft and draft.is_active %}
+        <a href="{{ url_for('league_draft', league_id=league.id) }}" class="btn" style="margin-top: 20px;">Continue Draft</a>
+    {% elif not draft %}
+        <a href="{{ url_for('setup_league', league_id=league.id) }}" class="btn" style="margin-top: 20px;">Setup Teams</a>
+    {% endif %}
+{% else %}
+    <p>No teams created yet.</p>
+    <a href="{{ url_for('setup_league', league_id=league.id) }}" class="btn">Setup Teams</a>
+{% endif %}
+
+<div style="margin-top: 30px;">
+    <a href="{{ url_for('index') }}" style="color: #666;">← Switch League</a>
+</div>
+
+<script>
+function copyCode(code) {
+    navigator.clipboard.writeText(code).then(function() {
+        alert('Access code copied to clipboard!');
+    });
+}
+</script>
+{% endblock %}
