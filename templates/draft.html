@@ -150,24 +150,46 @@
                         {% endif %}">
 
                 <!-- Player Tooltip -->
-                <div class="player-tooltip" style="display: none; position: absolute; bottom: 100%; left: 10px; background: #333; color: white; padding: 10px; border-radius: 5px; font-size: 11px; width: 250px; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-                    <strong>{{ player.full_name or player.name }}</strong><br>
-                    <span style="color: #ffd700;">{{ player.team }} - {{ player.position }}</span><br>
-                    {% if player.status %}
+                <div class="player-tooltip" style="display: none; position: absolute; bottom: 100%; left: 10px; background: #333; color: white; padding: 12px; border-radius: 5px; font-size: 12px; min-width: 300px; max-width: 400px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+                    <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px;">
+                        {{ player.full_name or player.name }}
+                    </div>
+                    <div style="color: #ffd700; margin-bottom: 5px;">
+                        {{ player.team }} - {{ player.position }}
+                    </div>
+
+                    {% if player.status and player.status != 'Available' %}
+                    <div style="margin-bottom: 5px;">
                         <span style="color: {% if 'injured' in player.status|lower %}#ff6b6b{% elif 'suspended' in player.status|lower %}#ffa726{% else %}#66bb6a{% endif %};">
                             Status: {{ player.status }}
-                        </span><br>
+                        </span>
+                    </div>
                     {% endif %}
+
                     {% if player.notes %}
-                        <span style="color: #90caf9;">News: {{ player.notes }}</span><br>
+                    <div style="background-color: rgba(144, 202, 249, 0.1); padding: 5px; border-radius: 3px; margin: 5px 0; border-left: 3px solid #90caf9;">
+                        <span style="color: #90caf9; font-weight: bold;">Notes:</span><br>
+                        <span style="color: #fff; font-size: 11px; line-height: 1.4;">{{ player.notes }}</span>
+                    </div>
                     {% endif %}
-                    <hr style="margin: 5px 0; border-color: #555;">
-                    Stats: {{ player.total_points or 0 }} pts | {{ player.minutes or 0 }} mins<br>
-                    {% if player.position in ['FWD', 'MID'] %}
-                        Goals: {{ player.goals_scored or 0 }} | Assists: {{ player.assists or 0 }}
-                    {% else %}
-                        Clean Sheets: {{ player.clean_sheets or 0 }}
-                    {% endif %}
+
+                    <hr style="margin: 8px 0; border-color: #555; border-style: solid; border-width: 1px 0 0 0;">
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 11px;">
+                        <div>Points: <strong>{{ player.total_points or 0 }}</strong></div>
+                        <div>Minutes: <strong>{{ player.minutes or 0 }}</strong></div>
+                        {% if player.position in ['FWD', 'MID'] %}
+                        <div>Goals: <strong>{{ player.goals_scored or 0 }}</strong></div>
+                        <div>Assists: <strong>{{ player.assists or 0 }}</strong></div>
+                        {% else %}
+                        <div>Clean Sheets: <strong>{{ player.clean_sheets or 0 }}</strong></div>
+                        <div>Saves: <strong>{{ player.saves or 0 }}</strong></div>
+                        {% endif %}
+                        {% if player.now_cost %}
+                        <div>Price: <strong>£{{ "%.1f"|format(player.now_cost) }}m</strong></div>
+                        {% endif %}
+                        <div>PPG: <strong>{{ "%.1f"|format(player.points_per_game) if player.points_per_game else 'N/A' }}</strong></div>
+                    </div>
                 </div>
 
                 <div style="flex: 1;"

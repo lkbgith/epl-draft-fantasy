@@ -739,9 +739,9 @@ def import_fpl_excel(filepath):
                         # If no bps but has bonus, estimate bps
                         player.bps = int(row['bonus']) * 3
 
-                    # ADD: Handle news field for new players
-                    if 'news' in row and pd.notna(row['news']):
-                        player.news = str(row['news']).strip()
+                    # ADD: Handle notes field for new players
+                    if 'notes' in row and pd.notna(row['notes']):
+                        player.notes = str(row['notes']).strip()
 
                     db.session.add(player)
                     imported += 1
@@ -915,6 +915,50 @@ def import_players():
     """Basic CSV import page - just redirects to Excel import for now"""
     # For now, just redirect to the Excel import
     return redirect(url_for('import_excel'))
+
+
+@app.route('/debug_notes')
+def debug_notes():
+    """Debug route to check if notes field is populated"""
+    players_with_notes = Player.query.filter(Player.notes != None).limit(10).all()
+
+    output = "<h2>Players with Notes</h2>"
+
+    if not players_with_notes:
+        output += "<p style='color: red;'>No players have notes in the database!</p>"
+        output += "<p>This means either:</p>"
+        output += "<ul>"
+        output += "<li>The 'notes' column wasn't imported from Excel</li>"
+        output += "<li>The column name in Excel doesn't match 'notes'</li>"
+        output += "<li>The notes field doesn't exist in the Player model</li>"
+        output += "</ul>"
+    else:
+        output += f"<p style='color: green;'>Found {len(players_with_notes)} players with notes:</p>"
+
+    for player in players_with_notes:
+        output += f"""
+        <div style='border: 1px solid #ddd; padding: 10px; margin: 10px 0;'>
+            <strong>{player.name}</strong> - {player.team}<br>
+            <strong>Notes:</strong> {player.notes}<br>
+            <strong>Status:</strong> {player.status or 'N/A'}<br>
+        </div>
+        """
+
+    # Also check a few players without notes
+    output += "<h3>Sample of All Players (checking all fields)</h3>"
+    sample_players = Player.query.limit(5).all()
+
+    for player in sample_players:
+        output += f"""
+        <div style='border: 1px solid #ddd; padding: 10px; margin: 10px 0;'>
+            <strong>{player.name}</strong><br>
+            Notes field exists: {'Yes' if hasattr(player, 'notes') else 'No'}<br>
+            Notes value: {repr(player.notes)}<br>
+            Status: {player.status}<br>
+        </div>
+        """
+
+    return output
 
 # One-time reset function (safe to keep in code)
 @app.route('/admin/reset_database')
