@@ -18,6 +18,33 @@
     </button>
 </div>
 
+<!-- Undo Controls - Add this after the current pick section -->
+<div style="background-color: #fff3e0; padding: 15px; margin: 15px 0; border-radius: 4px; border: 1px solid #ff9800;">
+    <div style="display: flex; gap: 15px; align-items: center; justify-content: space-between;">
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <!-- Single Undo Button -->
+            <form method="POST" action="{{ url_for('undo_last_pick') }}" style="display: inline; margin: 0;">
+                <button type="submit"
+                        id="undoButton"
+                        class="btn"
+                        style="background-color: #ff9800; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px;">
+                    ↶ Undo Last Pick
+                </button>
+            </form>
+
+            <!-- Undo Status -->
+            <div id="undoStatus" style="font-size: 14px; color: #666;">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Keyboard shortcut hint -->
+        <div style="font-size: 12px; color: #999;">
+            💡 Tip: Press Ctrl+Z (or Cmd+Z) to undo
+        </div>
+    </div>
+</div>
+
 <!-- Flash Messages for Errors -->
 {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -418,6 +445,36 @@ if (window.innerWidth <= 768) {
 }
 </style>
 
+<style>
+#undoButton:hover:not(:disabled) {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    background-color: #f57c00 !important;
+}
+
+#undoButton:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+#undoButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* Optional: Add a subtle animation when undo is available */
+@keyframes subtlePulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.7); }
+    70% { box-shadow: 0 0 0 5px rgba(255, 152, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0); }
+}
+
+#undoButton:not(:disabled) {
+    animation: subtlePulse 3s infinite;
+}
+</style>
+
 <script>
 // Enhanced tooltip positioning for draft page
 document.addEventListener('DOMContentLoaded', function() {
@@ -459,6 +516,58 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+});
+</script>
+
+<script>
+// Check undo availability on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateUndoStatus();
+});
+
+function updateUndoStatus() {
+    fetch('/api/can_undo')
+        .then(response => response.json())
+        .then(data => {
+            const statusDiv = document.getElementById('undoStatus');
+            const undoButton = document.getElementById('undoButton');
+
+            if (data.can_undo && data.picks_count > 0) {
+                statusDiv.innerHTML = `📊 ${data.picks_count} pick${data.picks_count > 1 ? 's' : ''} made (press multiple times to undo more)`;
+                // Enable undo button
+                if (undoButton) {
+                    undoButton.disabled = false;
+                    undoButton.style.opacity = '1';
+                    undoButton.style.cursor = 'pointer';
+                }
+            } else {
+                statusDiv.innerHTML = '📊 No picks to undo';
+                // Disable undo button
+                if (undoButton) {
+                    undoButton.disabled = true;
+                    undoButton.style.opacity = '0.5';
+                    undoButton.style.cursor = 'not-allowed';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error checking undo status:', error);
+        });
+}
+
+// Add keyboard shortcut for undo (Ctrl+Z or Cmd+Z)
+document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        const undoButton = document.getElementById('undoButton');
+        if (undoButton && !undoButton.disabled) {
+            // Submit the form directly without confirmation for keyboard shortcut
+            const form = undoButton.closest('form');
+            if (form) {
+                form.submit();
+            }
+        }
+    }
 });
 </script>
 

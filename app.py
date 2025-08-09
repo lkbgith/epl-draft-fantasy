@@ -206,6 +206,24 @@ class Draft(db.Model):
             self.current_team_index = 0
 
 
+class DraftHistory(db.Model):
+    """Track each draft pick for undo functionality"""
+    id = db.Column(db.Integer, primary_key=True)
+    pick_number = db.Column(db.Integer, nullable=False)
+    player_id = db.Column(db.Integer, db.ForeignKey('player.id'), nullable=False)
+    team_id = db.Column(db.Integer, db.ForeignKey('draft_team.id'), nullable=False)
+    draft_id = db.Column(db.Integer, db.ForeignKey('draft.id'), nullable=False)
+
+    # Store the draft state at the time of the pick
+    team_index = db.Column(db.Integer, nullable=False)
+    round_number = db.Column(db.Integer, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    player = db.relationship('Player', backref='draft_history_entries')
+    team = db.relationship('DraftTeam', backref='draft_history_entries')
+    draft = db.relationship('Draft', backref='history_entries')
+
 class Wishlist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey('draft_team.id'), nullable=False)
@@ -411,6 +429,17 @@ def draft_player(player_id):
         flash(f"Cannot draft {player.name}: {reason}", 'error')
         return redirect(url_for('draft'))
 
+    # Save the current state to history BEFORE making changes
+    history_entry = DraftHistory(
+        pick_number=draft.current_pick,
+        player_id=player.id,
+        team_id=current_team.id,
+        draft_id=draft.id,
+        team_index=draft.current_team_index,
+        round_number=draft.current_round
+    )
+    db.session.add(history_entry)
+
     # Draft the player
     player.drafted = True
     player.drafted_by = current_team.id
@@ -420,10 +449,80 @@ def draft_player(player_id):
 
     db.session.commit()
 
-    # Log the draft pick (optional - for persistent history)
-    # You could add a DraftHistory model if you want to persist this
+    flash(f"{current_team.name} drafted {player.name} ({player.position}, {player.team})", 'success')
+    return redirect(url_for('draft'))
+
+
+# Add this new route for undoing picks
+@app.route('/undo_last_pick', methods=['POST'])
+def undo_last_pick():
+    """Undo the last draft pick and restore the previous state"""
+    draft = Draft.query.first()
+
+    if not draft or not draft.is_active:
+        flash('No active draft to undo', 'error')
+        return redirect(url_for('draft'))
+
+    # Get the last pick from history
+    last_pick = DraftHistory.query.filter_by(
+        draft_id=draft.id
+    ).order_by(DraftHistory.pick_number.desc()).first()
+
+    if not last_pick:
+        flash('No picks to undo', 'warning')
+        return redirect(url_for('draft'))
+
+    # Get the player and reset their draft status
+    player = Player.query.get(last_pick.player_id)
+    if player:
+        player.drafted = False
+        player.drafted_by = None
+
+    # Restore the draft state to before this pick
+    draft.current_pick = last_pick.pick_number
+    draft.current_team_index = last_pick.team_index
+
+    # Delete the history entry
+    db.session.delete(last_pick)
+
+    # Commit all changes
+    db.session.commit()
+
+    team = DraftTeam.query.get(last_pick.team_id)
+    flash(f"✓ Undid pick: {player.name} ({player.position}, {player.team}) by {team.name}", 'info')
 
     return redirect(url_for('draft'))
+
+
+# Update the get_draft_history function to use the DraftHistory model
+def get_draft_history():
+    """Get the history of all drafted players in order"""
+    history_entries = DraftHistory.query.order_by(DraftHistory.pick_number).all()
+
+    history = []
+    for entry in history_entries:
+        history.append({
+            'pick': entry.pick_number,
+            'player_name': entry.player.name,
+            'player_position': entry.player.position,
+            'player_team': entry.player.team,
+            'team_name': entry.team.name,
+            'timestamp': entry.timestamp
+        })
+
+    return history
+
+
+# Add this helper route to check if undo is available
+@app.route('/api/can_undo')
+def can_undo():
+    """Check if there are picks that can be undone"""
+    draft = Draft.query.first()
+    if not draft:
+        return jsonify({'can_undo': False, 'picks_count': 0})
+
+    picks_count = DraftHistory.query.filter_by(draft_id=draft.id).count()
+    return jsonify({'can_undo': picks_count > 0, 'picks_count': picks_count})
 
 
 @app.route('/team/<int:team_id>/formation')
