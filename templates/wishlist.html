@@ -30,6 +30,8 @@
                                     background-color: #fff3e0; border-left: 4px solid #ff9800;
                                 {% elif 'transfer' in item.player.status|lower %}
                                     background-color: #e3f2fd; border-left: 4px solid #2196F3;
+                                {% elif 'unavailable' in item.player.status|lower %}
+                                    background-color: #ffebee; border-left: 4px solid #2196F3;
                                 {% endif %}
                             {% endif %}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -49,6 +51,8 @@
                                     <span style="color: #ff9800; font-size: 11px;">⚠️</span>
                                 {% elif 'transfer' in item.player.status|lower %}
                                     <span style="color: #2196F3; font-size: 11px;">✈️</span>
+                                {% elif 'unavailable' in item.player.status|lower %}
+                                    <span style="color: #d32f2f; font-size: 11px;">✈️</span>
                                 {% endif %}
                             {% endif %}
 
@@ -192,6 +196,8 @@
                                 background-color: #fff3e0; border-left: 3px solid #ff9800;
                             {% elif 'transfer' in player.status|lower %}
                                 background-color: #e3f2fd; border-left: 3px solid #2196F3;
+                            {% elif 'unavailable' in player.status|lower %}
+                                background-color: #ffebee; border-left: 3px solid #d32f2f;
                             {% endif %}
                         {% endif %}">
 
@@ -248,6 +254,8 @@
                             <span style="color: #ff9800; font-size: 10px;">⚠️</span>
                         {% elif 'transfer' in player.status|lower %}
                             <span style="color: #2196F3; font-size: 10px;">✈️</span>
+                        {% elif 'unavailable' in player.status|lower %}
+                            <span style="color: #d32f2f; font-size: 10px;">✈️</span>
                         {% endif %}
                     {% endif %}
 
