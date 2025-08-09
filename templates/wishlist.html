@@ -284,7 +284,6 @@
         const sort = document.getElementById('sortSelect').value;
         const position = document.getElementById('positionSelect').value;
         const team = document.getElementById('teamSelect').value;
-
         window.location.href = `{{ url_for('team_wishlist', team_id=team.id) }}?sort=${sort}&position=${position}&team=${team}`;
     }
 
@@ -293,73 +292,91 @@
         window.location.href = `{{ url_for('team_wishlist', team_id=team.id) }}`;
     }
 
-    // Enhanced search functionality with live filtering
-    document.getElementById('playerSearch').addEventListener('input', function(e) {
-        const searchTerm = e.target.value.toLowerCase();
-        const players = document.querySelectorAll('.player-option');
-        let visibleCount = 0;
-
-        players.forEach(player => {
-            const searchData = player.dataset.search;
-            const match = !searchTerm || searchData.includes(searchTerm);
-
-            if (match) {
-                player.style.display = 'flex';
-                visibleCount++;
-            } else {
-                player.style.display = 'none';
-            }
-        });
-
-        // Update count
-        document.getElementById('visibleCount').textContent = visibleCount;
-    });
-
-    // FIXED: Enhanced tooltip positioning - wait for DOM to be ready
+    // Wait for DOM to be ready
     document.addEventListener('DOMContentLoaded', function() {
-        // Setup tooltips for player list
-        document.querySelectorAll('.player-info-hover').forEach(playerDiv => {
-            const tooltip = playerDiv.parentElement.querySelector('.player-tooltip');
 
-            if (tooltip) {  // Make sure tooltip exists
-                playerDiv.addEventListener('mouseenter', function(e) {
-                    const rect = this.getBoundingClientRect();
+        // Enhanced search functionality
+        const searchInput = document.getElementById('playerSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase();
+                const players = document.querySelectorAll('.player-option');
+                let visibleCount = 0;
+
+                players.forEach(player => {
+                    const searchData = player.dataset.search;
+                    const match = !searchTerm || searchData.includes(searchTerm);
+
+                    if (match) {
+                        player.style.display = 'flex';
+                        visibleCount++;
+                    } else {
+                        player.style.display = 'none';
+                    }
+                });
+
+                document.getElementById('visibleCount').textContent = visibleCount;
+            });
+        }
+
+        // Setup tooltips - SIMPLIFIED APPROACH
+        const playerOptions = document.querySelectorAll('.player-option');
+
+        playerOptions.forEach(function(playerCard) {
+            const tooltip = playerCard.querySelector('.player-tooltip');
+            const hoverArea = playerCard.querySelector('.player-info-hover');
+
+            if (tooltip && hoverArea) {
+                // Use mouseover/mouseout instead of mouseenter/mouseleave
+                hoverArea.addEventListener('mouseover', function(e) {
+                    e.stopPropagation();
+                    const rect = playerCard.getBoundingClientRect();
                     const tooltipWidth = 350;
-                    const tooltipHeight = 250; // Increased height for notes
+                    const tooltipHeight = 250;
 
+                    // Calculate position
                     let left = rect.right + 10;
                     let top = rect.top;
 
-                    // Check if tooltip would go off the right edge
-                    if (left + tooltipWidth > window.innerWidth) {
+                    // Adjust if would go off screen
+                    if (left + tooltipWidth > window.innerWidth - 20) {
                         left = rect.left - tooltipWidth - 10;
                     }
 
-                    // Check if tooltip would go off the bottom
-                    if (top + tooltipHeight > window.innerHeight) {
-                        top = window.innerHeight - tooltipHeight - 10;
+                    if (top + tooltipHeight > window.innerHeight - 20) {
+                        top = window.innerHeight - tooltipHeight - 20;
                     }
 
-                    // Check if tooltip would go off the top
-                    if (top < 10) {
-                        top = 10;
+                    if (top < 20) {
+                        top = 20;
                     }
 
+                    // Apply position and show
                     tooltip.style.left = left + 'px';
                     tooltip.style.top = top + 'px';
                     tooltip.style.display = 'block';
+
+                    // Debug log
+                    console.log('Showing tooltip for:', hoverArea.querySelector('strong').textContent);
                 });
 
-                playerDiv.addEventListener('mouseleave', function() {
+                hoverArea.addEventListener('mouseout', function(e) {
+                    e.stopPropagation();
+                    tooltip.style.display = 'none';
+                });
+
+                // Also hide on parent mouseout as backup
+                playerCard.addEventListener('mouseleave', function() {
                     tooltip.style.display = 'none';
                 });
             }
         });
 
-        // Drag and drop functionality
+        // Drag and drop functionality for wishlist items
         let draggedElement = null;
+        const wishlistItems = document.querySelectorAll('.wishlist-item');
 
-        document.querySelectorAll('.wishlist-item').forEach(item => {
+        wishlistItems.forEach(function(item) {
             item.draggable = true;
 
             item.addEventListener('dragstart', function(e) {
@@ -384,7 +401,7 @@
                 e.preventDefault();
                 this.style.borderTop = '';
 
-                if (this !== draggedElement) {
+                if (this !== draggedElement && draggedElement) {
                     const wishlist = document.getElementById('wishlist');
                     wishlist.insertBefore(draggedElement, this);
 
@@ -401,20 +418,24 @@
                     // Update rank numbers
                     items.forEach((item, index) => {
                         const rankElement = item.querySelector('strong');
-                        rankElement.textContent = rankElement.textContent.replace(/^#\d+\./, `#${index + 1}.`);
+                        if (rankElement) {
+                            rankElement.textContent = rankElement.textContent.replace(/^#\d+\./, `#${index + 1}.`);
+                        }
                     });
                 }
             });
         });
 
-        // Update the visual state of drafted players
-        const draftedPlayers = document.querySelectorAll('.wishlist-item');
-        draftedPlayers.forEach(item => {
+        // Update visual state of drafted players
+        wishlistItems.forEach(function(item) {
             if (item.textContent.includes('[DRAFTED]')) {
                 item.style.backgroundColor = '#ffebee';
                 item.style.opacity = '0.6';
             }
         });
+
+        // Debug: Log how many tooltips we found
+        console.log('Found', playerOptions.length, 'player cards with tooltips');
     });
 </script>
 

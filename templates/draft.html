@@ -179,9 +179,8 @@
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 11px;">
                         <div>Points: <strong>{{ player.total_points or 0 }}</strong></div>
-                        <div>Minutes: <strong>{{ player.minutes or 0 }}</strong></div>
-                        {% if player.position in ['FWD', 'MID'] %}
                         <div>Goals: <strong>{{ player.goals_scored or 0 }}</strong></div>
+                        {% if player.position in ['FWD', 'MID', 'DEF'] %}
                         <div>Assists: <strong>{{ player.assists or 0 }}</strong></div>
                         {% else %}
                         <div>Clean Sheets: <strong>{{ player.clean_sheets or 0 }}</strong></div>
