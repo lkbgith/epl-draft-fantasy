@@ -62,6 +62,12 @@
                                     Status: {{ item.player.status }}
                                 </div>
                             {% endif %}
+
+                            {% if item.player.notes %}
+                                <div style="font-size: 10px; color: #666; margin-top: 3px; font-style: italic;">
+                                    📰 {{ item.player.notes }}
+                                </div>
+                            {% endif %}
                         </div>
 
                         <form method="POST" action="{{ url_for('remove_from_wishlist', team_id=team.id, player_id=item.player.id) }}" style="display: inline;">
@@ -154,7 +160,205 @@
                     <option value="name" {% if current_sort =='name' %}selected{% endif %}>Name</option>
                 </select>
             </div>
+
+            <!-- Clear button -->
+            <button onclick="clearWishlistFilters()" class="btn" style="margin-top: 5px; padding: 3px 8px; font-size: 11px; background-color: #666; width: 100%;">
+                ✕ Clear All Filters
+            </button>
+        </div>
+
+        <!-- Player count -->
+        <div style="font-size: 11px; color: #666; margin-bottom: 5px;">
+            Showing <span id="visibleCount">{{ available_players|length }}</span> available players
+        </div>
+
+        <!-- Player List -->
+        <div style="height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
+            {% for player in available_players %}
+            <div class="player-option"
+                 data-name="{{ player.name|lower }}"
+                 data-team="{{ player.team|lower }}"
+                 data-position="{{ player.position }}"
+                 data-search="{{ (player.first_name ~ ' ' ~ player.second_name ~ ' ' ~ player.web_name)|lower }}"
+                 style="background: #f9f9f9; padding: 8px; margin: 5px 0; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; position: relative;
+                        {% if player.status and player.status != 'Available' %}
+                            {% if 'injured' in player.status|lower or 'doubtful' in player.status|lower %}
+                                background-color: #ffebee; border-left: 3px solid #d32f2f;
+                            {% elif 'suspended' in player.status|lower %}
+                                background-color: #fff3e0; border-left: 3px solid #ff9800;
+                            {% endif %}
+                        {% endif %}">
+
+                <!-- Player Tooltip -->
+                <div class="player-tooltip" style="display: none; position: absolute; bottom: 100%; left: 10px; background: #333; color: white; padding: 8px; border-radius: 5px; font-size: 10px; width: 220px; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                    <strong>{{ player.full_name or player.name }}</strong><br>
+                    <span style="color: #ffd700;">{{ player.team }} - {{ player.position }}</span><br>
+                    {% if player.status %}
+                        <span style="color: {% if 'injured' in player.status|lower %}#ff6b6b{% elif 'suspended' in player.status|lower %}#ffa726{% else %}#66bb6a{% endif %};">
+                            Status: {{ player.status }}
+                        </span><br>
+                    {% endif %}
+                    {% if player.news %}
+                        <span style="color: #90caf9; font-size: 9px;">News: {{ player.news }}</span><br>
+                    {% endif %}
+                    <hr style="margin: 3px 0; border-color: #555;">
+                    {{ player.total_points or 0 }} pts | {{ player.minutes or 0 }} mins |
+                    {% if player.position in ['FWD', 'MID'] %}
+                        G: {{ player.goals_scored or 0 }} A: {{ player.assists or 0 }}
+                    {% else %}
+                        CS: {{ player.clean_sheets or 0 }}
+                    {% endif %}
+                </div>
+
+                <div style="flex: 1;"
+                     onmouseenter="this.parentElement.querySelector('.player-tooltip').style.display='block'"
+                     onmouseleave="this.parentElement.querySelector('.player-tooltip').style.display='none'">
+                    <strong>{{ player.name }}</strong>
+                    <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
+                    <span style="color: #666;">{{ player.team }}</span>
+
+                    {% if player.status and player.status != 'Available' %}
+                        {% if 'injured' in player.status|lower or 'doubtful' in player.status|lower %}
+                            <span style="color: #d32f2f; font-size: 10px;">🚑</span>
+                        {% elif 'suspended' in player.status|lower %}
+                            <span style="color: #ff9800; font-size: 10px;">⚠️</span>
+                        {% endif %}
+                    {% endif %}
+
+                    <div style="font-size: 11px; color: #666;">
+                        {% if player.now_cost %}£{{ "%.1f"|format(player.now_cost) }}m | {% endif %}
+                        Pts: {{ player.total_points or 0 }} |
+                        PPG: {{ "%.1f"|format(player.points_per_game) if player.points_per_game else 'N/A' }}
+                        {% if player.minutes %}| Min: {{ player.minutes }}{% endif %}
+                        {% if player.goals_scored or player.assists %}
+                            | G: {{ player.goals_scored or 0 }} A: {{ player.assists or 0 }}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ url_for('add_to_wishlist', team_id=team.id, player_id=player.id) }}" style="display: inline;">
+                    <button type="submit" class="btn" style="padding: 5px 10px; font-size: 12px;">+</button>
+                </form>
+            </div>
+            {% endfor %}
         </div>
     </div>
 </div>
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('view_team', team_id=team.id) }}" class="btn">Back to Team</a>
+    <a href="{{ url_for('draft') }}" class="btn">Back to Draft</a>
+</div>
+
+<script>
+    // Update wishlist filters
+    function updateWishlistFilters() {
+        const sort = document.getElementById('sortSelect').value;
+        const position = document.getElementById('positionSelect').value;
+        const team = document.getElementById('teamSelect').value;
+
+        window.location.href = `{{ url_for('team_wishlist', team_id=team.id) }}?sort=${sort}&position=${position}&team=${team}`;
+    }
+
+    // Clear filters
+    function clearWishlistFilters() {
+        window.location.href = `{{ url_for('team_wishlist', team_id=team.id) }}`;
+    }
+
+    // Enhanced search functionality with live filtering
+    document.getElementById('playerSearch').addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const players = document.querySelectorAll('.player-option');
+        let visibleCount = 0;
+
+        players.forEach(player => {
+            const searchData = player.dataset.search;
+            const match = !searchTerm || searchData.includes(searchTerm);
+
+            if (match) {
+                player.style.display = 'flex';
+                visibleCount++;
+            } else {
+                player.style.display = 'none';
+            }
+        });
+
+        // Update count
+        document.getElementById('visibleCount').textContent = visibleCount;
+    });
+
+    // Drag and drop functionality
+    let draggedElement = null;
+
+    document.querySelectorAll('.wishlist-item').forEach(item => {
+        item.draggable = true;
+
+        item.addEventListener('dragstart', function(e) {
+            draggedElement = this;
+            this.style.opacity = '0.5';
+        });
+
+        item.addEventListener('dragend', function(e) {
+            this.style.opacity = '';
+        });
+
+        item.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.style.borderTop = '3px solid #38003c';
+        });
+
+        item.addEventListener('dragleave', function(e) {
+            this.style.borderTop = '';
+        });
+
+        item.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.style.borderTop = '';
+
+            if (this !== draggedElement) {
+                const wishlist = document.getElementById('wishlist');
+                wishlist.insertBefore(draggedElement, this);
+
+                // Update order in database
+                const items = document.querySelectorAll('.wishlist-item');
+                const newOrder = Array.from(items).map(item => parseInt(item.dataset.playerId));
+
+                fetch(`/team/{{ team.id }}/wishlist/reorder`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({order: newOrder})
+                });
+
+                // Update rank numbers
+                items.forEach((item, index) => {
+                    const rankElement = item.querySelector('strong');
+                    rankElement.textContent = rankElement.textContent.replace(/^#\d+\./, `#${index + 1}.`);
+                });
+            }
+        });
+    });
+
+    // Update the visual state of drafted players on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const draftedPlayers = document.querySelectorAll('.wishlist-item');
+        draftedPlayers.forEach(item => {
+            if (item.textContent.includes('[DRAFTED]')) {
+                item.style.backgroundColor = '#ffebee';
+                item.style.opacity = '0.6';
+            }
+        });
+    });
+</script>
+
+<style>
+.player-option:hover {
+    background-color: #e3f2fd !important;
+    transform: translateX(2px);
+    transition: all 0.2s;
+}
+.player-tooltip {
+    pointer-events: none;
+}
+</style>
+
 {% endblock %}

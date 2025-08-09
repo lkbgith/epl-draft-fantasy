@@ -694,6 +694,10 @@ def import_fpl_excel(filepath):
                     elif 'now_cost' in row and pd.notna(row['now_cost']):
                         existing.now_cost = float(row['now_cost'])
 
+                    # UPDATE: Handle news field
+                    if 'notes' in row and pd.notna(row['notes']):
+                        existing.notes = str(row['notes']).strip()
+
                     existing.position = position
                     existing.status = row.get('status', 'Available')
                     existing.full_name = full_name
@@ -734,6 +738,10 @@ def import_fpl_excel(filepath):
                     elif 'bonus' in row and pd.notna(row['bonus']):
                         # If no bps but has bonus, estimate bps
                         player.bps = int(row['bonus']) * 3
+
+                    # ADD: Handle news field for new players
+                    if 'news' in row and pd.notna(row['news']):
+                        player.news = str(row['news']).strip()
 
                     db.session.add(player)
                     imported += 1
