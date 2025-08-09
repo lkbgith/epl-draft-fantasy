@@ -28,6 +28,8 @@
                                     background-color: #ffebee; border-left: 4px solid #d32f2f;
                                 {% elif 'suspended' in item.player.status|lower %}
                                     background-color: #fff3e0; border-left: 4px solid #ff9800;
+                                {% elif 'transfer' in item.player.status|lower %}
+                                    background-color: #e3f2fd; border-left: 4px solid #2196F3;
                                 {% endif %}
                             {% endif %}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -45,6 +47,8 @@
                                     <span style="color: #d32f2f; font-size: 11px;">🚑</span>
                                 {% elif 'suspended' in item.player.status|lower %}
                                     <span style="color: #ff9800; font-size: 11px;">⚠️</span>
+                                {% elif 'transfer' in item.player.status|lower %}
+                                    <span style="color: #2196F3; font-size: 11px;">✈️</span>
                                 {% endif %}
                             {% endif %}
 
@@ -58,7 +62,7 @@
                             </div>
 
                             {% if item.player.status and item.player.status != 'Available' %}
-                                <div style="font-size: 11px; color: #d32f2f; margin-top: 3px;">
+                                <div style="font-size: 11px; color: {% if 'injured' in item.player.status|lower %}#d32f2f{% elif 'suspended' in item.player.status|lower %}#ff9800{% elif 'transfer' in item.player.status|lower %}#2196F3{% else %}#666{% endif %}; margin-top: 3px;">
                                     Status: {{ item.player.status }}
                                 </div>
                             {% endif %}
@@ -173,7 +177,7 @@
         </div>
 
         <!-- Player List -->
-        <div style="height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
+        <div style="height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; position: relative;">
             {% for player in available_players %}
             <div class="player-option"
                  data-name="{{ player.name|lower }}"
@@ -186,11 +190,13 @@
                                 background-color: #ffebee; border-left: 3px solid #d32f2f;
                             {% elif 'suspended' in player.status|lower %}
                                 background-color: #fff3e0; border-left: 3px solid #ff9800;
+                            {% elif 'transfer' in player.status|lower %}
+                                background-color: #e3f2fd; border-left: 3px solid #2196F3;
                             {% endif %}
                         {% endif %}">
 
                 <!-- Player Tooltip -->
-                <div class="player-tooltip" style="display: none; position: absolute; z-index: 1000; background: #333; color: white; padding: 12px; border-radius: 5px; font-size: 12px; min-width: 300px; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none;">
+                <div class="player-tooltip" style="display: none; position: fixed; background: #333; color: white; padding: 12px; border-radius: 5px; font-size: 12px; min-width: 300px; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none; z-index: 9999;">
                     <div style="font-size: 13px; font-weight: bold; margin-bottom: 5px;">
                         {{ player.full_name or player.name }}
                     </div>
@@ -200,7 +206,7 @@
 
                     {% if player.status and player.status != 'Available' %}
                     <div style="margin-bottom: 5px;">
-                        <span style="color: {% if 'injured' in player.status|lower %}#ff6b6b{% elif 'suspended' in player.status|lower %}#ffa726{% else %}#66bb6a{% endif %}; font-size: 11px;">
+                        <span style="color: {% if 'injured' in player.status|lower %}#ff6b6b{% elif 'suspended' in player.status|lower %}#ffa726{% elif 'transfer' in player.status|lower %}#64b5f6{% else %}#66bb6a{% endif %}; font-size: 11px;">
                             Status: {{ player.status }}
                         </span>
                     </div>
@@ -230,9 +236,7 @@
                     </div>
                 </div>
 
-                <div style="flex: 1;"
-                     onmouseenter="this.parentElement.querySelector('.player-tooltip').style.display='block'"
-                     onmouseleave="this.parentElement.querySelector('.player-tooltip').style.display='none'">
+                <div style="flex: 1;" class="player-info-hover">
                     <strong>{{ player.name }}</strong>
                     <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
                     <span style="color: #666;">{{ player.team }}</span>
@@ -242,6 +246,8 @@
                             <span style="color: #d32f2f; font-size: 10px;">🚑</span>
                         {% elif 'suspended' in player.status|lower %}
                             <span style="color: #ff9800; font-size: 10px;">⚠️</span>
+                        {% elif 'transfer' in player.status|lower %}
+                            <span style="color: #2196F3; font-size: 10px;">✈️</span>
                         {% endif %}
                     {% endif %}
 
@@ -269,6 +275,8 @@
     <a href="{{ url_for('view_team', team_id=team.id) }}" class="btn">Back to Team</a>
     <a href="{{ url_for('draft') }}" class="btn">Back to Draft</a>
 </div>
+
+<!-- Replace the entire <script> section in wishlist.html with this fixed version -->
 
 <script>
     // Update wishlist filters
@@ -307,59 +315,99 @@
         document.getElementById('visibleCount').textContent = visibleCount;
     });
 
-    // Drag and drop functionality
-    let draggedElement = null;
+    // FIXED: Enhanced tooltip positioning - wait for DOM to be ready
+    document.addEventListener('DOMContentLoaded', function() {
+        // Setup tooltips for player list
+        document.querySelectorAll('.player-info-hover').forEach(playerDiv => {
+            const tooltip = playerDiv.parentElement.querySelector('.player-tooltip');
 
-    document.querySelectorAll('.wishlist-item').forEach(item => {
-        item.draggable = true;
+            if (tooltip) {  // Make sure tooltip exists
+                playerDiv.addEventListener('mouseenter', function(e) {
+                    const rect = this.getBoundingClientRect();
+                    const tooltipWidth = 350;
+                    const tooltipHeight = 250; // Increased height for notes
 
-        item.addEventListener('dragstart', function(e) {
-            draggedElement = this;
-            this.style.opacity = '0.5';
-        });
+                    let left = rect.right + 10;
+                    let top = rect.top;
 
-        item.addEventListener('dragend', function(e) {
-            this.style.opacity = '';
-        });
+                    // Check if tooltip would go off the right edge
+                    if (left + tooltipWidth > window.innerWidth) {
+                        left = rect.left - tooltipWidth - 10;
+                    }
 
-        item.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            this.style.borderTop = '3px solid #38003c';
-        });
+                    // Check if tooltip would go off the bottom
+                    if (top + tooltipHeight > window.innerHeight) {
+                        top = window.innerHeight - tooltipHeight - 10;
+                    }
 
-        item.addEventListener('dragleave', function(e) {
-            this.style.borderTop = '';
-        });
+                    // Check if tooltip would go off the top
+                    if (top < 10) {
+                        top = 10;
+                    }
 
-        item.addEventListener('drop', function(e) {
-            e.preventDefault();
-            this.style.borderTop = '';
-
-            if (this !== draggedElement) {
-                const wishlist = document.getElementById('wishlist');
-                wishlist.insertBefore(draggedElement, this);
-
-                // Update order in database
-                const items = document.querySelectorAll('.wishlist-item');
-                const newOrder = Array.from(items).map(item => parseInt(item.dataset.playerId));
-
-                fetch(`/team/{{ team.id }}/wishlist/reorder`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({order: newOrder})
+                    tooltip.style.left = left + 'px';
+                    tooltip.style.top = top + 'px';
+                    tooltip.style.display = 'block';
                 });
 
-                // Update rank numbers
-                items.forEach((item, index) => {
-                    const rankElement = item.querySelector('strong');
-                    rankElement.textContent = rankElement.textContent.replace(/^#\d+\./, `#${index + 1}.`);
+                playerDiv.addEventListener('mouseleave', function() {
+                    tooltip.style.display = 'none';
                 });
             }
         });
-    });
 
-    // Update the visual state of drafted players on page load
-    document.addEventListener('DOMContentLoaded', function() {
+        // Drag and drop functionality
+        let draggedElement = null;
+
+        document.querySelectorAll('.wishlist-item').forEach(item => {
+            item.draggable = true;
+
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.style.opacity = '0.5';
+            });
+
+            item.addEventListener('dragend', function(e) {
+                this.style.opacity = '';
+            });
+
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.style.borderTop = '3px solid #38003c';
+            });
+
+            item.addEventListener('dragleave', function(e) {
+                this.style.borderTop = '';
+            });
+
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.style.borderTop = '';
+
+                if (this !== draggedElement) {
+                    const wishlist = document.getElementById('wishlist');
+                    wishlist.insertBefore(draggedElement, this);
+
+                    // Update order in database
+                    const items = document.querySelectorAll('.wishlist-item');
+                    const newOrder = Array.from(items).map(item => parseInt(item.dataset.playerId));
+
+                    fetch(`/team/{{ team.id }}/wishlist/reorder`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({order: newOrder})
+                    });
+
+                    // Update rank numbers
+                    items.forEach((item, index) => {
+                        const rankElement = item.querySelector('strong');
+                        rankElement.textContent = rankElement.textContent.replace(/^#\d+\./, `#${index + 1}.`);
+                    });
+                }
+            });
+        });
+
+        // Update the visual state of drafted players
         const draftedPlayers = document.querySelectorAll('.wishlist-item');
         draftedPlayers.forEach(item => {
             if (item.textContent.includes('[DRAFTED]')) {

@@ -146,11 +146,13 @@
                                 background-color: #fff3e0; border-left: 4px solid #ff9800;
                             {% elif 'unavailable' in player.status|lower %}
                                 background-color: #fce4ec; border-left: 4px solid #e91e63;
+                            {% elif 'transfer' in player.status|lower %}
+                                background-color: #e3f2fd; border-left: 4px solid #2196F3;
                             {% endif %}
                         {% endif %}">
 
-                <!-- Player Tooltip -->
-                <div class="player-tooltip" style="display: none; position: absolute; z-index: 1000; background: #333; color: white; padding: 12px; border-radius: 5px; font-size: 12px; min-width: 300px; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none;">
+                <!-- Player Tooltip - now with fixed positioning -->
+                <div class="player-tooltip" style="display: none; position: fixed; background: #333; color: white; padding: 12px; border-radius: 5px; font-size: 12px; min-width: 300px; max-width: 400px; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none;">
                     <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px;">
                         {{ player.full_name or player.name }}
                     </div>
@@ -160,7 +162,7 @@
 
                     {% if player.status and player.status != 'Available' %}
                     <div style="margin-bottom: 5px;">
-                        <span style="color: {% if 'injured' in player.status|lower %}#ff6b6b{% elif 'suspended' in player.status|lower %}#ffa726{% else %}#66bb6a{% endif %};">
+                        <span style="color: {% if 'injured' in player.status|lower %}#ff6b6b{% elif 'suspended' in player.status|lower %}#ffa726{% elif 'transfer' in player.status|lower %}#64b5f6{% else %}#66bb6a{% endif %};">
                             Status: {{ player.status }}
                         </span>
                     </div>
@@ -192,9 +194,7 @@
                     </div>
                 </div>
 
-                <div style="flex: 1;"
-                     onmouseenter="this.parentElement.querySelector('.player-tooltip').style.display='block'"
-                     onmouseleave="this.parentElement.querySelector('.player-tooltip').style.display='none'">
+                <div style="flex: 1;" class="player-hover-trigger">
                     <strong>{{ player.name }}</strong>
                     <span class="position-badge position-{{ player.position }}">{{ player.position }}</span>
                     <span style="color: #666;">{{ player.team }}</span>
@@ -206,6 +206,8 @@
                             <span style="color: #ff9800; font-size: 11px; margin-left: 5px;">⚠️ Suspended</span>
                         {% elif 'unavailable' in player.status|lower %}
                             <span style="color: #e91e63; font-size: 11px; margin-left: 5px;">❌ Unavailable</span>
+                        {% elif 'transfer' in player.status|lower %}
+                            <span style="color: #2196F3; font-size: 11px; margin-left: 5px;">✈️ Transfer</span>
                         {% endif %}
                     {% endif %}
 
@@ -416,4 +418,49 @@ if (window.innerWidth <= 768) {
     border-left: 4px solid #e91e63 !important;
 }
 </style>
+
+<script>
+// Enhanced tooltip positioning for draft page
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.player-hover-trigger').forEach(function(trigger) {
+        const tooltip = trigger.parentElement.querySelector('.player-tooltip');
+
+        if (tooltip) {
+            trigger.addEventListener('mouseenter', function(e) {
+                const rect = this.getBoundingClientRect();
+                const tooltipWidth = 350;
+                const tooltipHeight = 250;
+
+                // Position to the right by default
+                let left = rect.right + 10;
+                let top = rect.top;
+
+                // Check if tooltip would go off the right edge
+                if (left + tooltipWidth > window.innerWidth - 20) {
+                    left = rect.left - tooltipWidth - 10;
+                }
+
+                // Check if tooltip would go off the bottom
+                if (top + tooltipHeight > window.innerHeight - 20) {
+                    top = window.innerHeight - tooltipHeight - 20;
+                }
+
+                // Check if tooltip would go off the top
+                if (top < 20) {
+                    top = 20;
+                }
+
+                tooltip.style.left = left + 'px';
+                tooltip.style.top = top + 'px';
+                tooltip.style.display = 'block';
+            });
+
+            trigger.addEventListener('mouseleave', function() {
+                tooltip.style.display = 'none';
+            });
+        }
+    });
+});
+</script>
+
 {% endblock %}
